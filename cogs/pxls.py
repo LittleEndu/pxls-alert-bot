@@ -1,10 +1,10 @@
 import asyncio
 import datetime
 import json
-import time
 import os
 import random
 import struct
+import time
 import traceback
 import urllib.parse
 from ast import literal_eval
@@ -176,10 +176,11 @@ class Pxls(object):
             name += ". Is {} but should be {}!".format(self.get_color_name(self.color_tuples[pixel['color']]),
                                                        self.get_color_name(self.color_tuples[should_be[0]]))
         template = on_templates[0]
-        value = "https://pxls.space/#template={}&ox={}&oy={}&x={}&y={}&scale=50&oo=0.5".format(template["template"],
-                                                                                               template['ox'],
-                                                                                               template['oy'],
-                                                                                               pixel["x"], pixel["y"])
+        value = "[Link with cords](https://pxls.space/#template={}&ox={}&oy={}&x={}&y={}&scale=50&oo=0.5)".format(
+            template["template"],
+            template['ox'],
+            template['oy'],
+            pixel["x"], pixel["y"])
         em.add_field(name=name, value=value)
         return em
 
@@ -245,7 +246,8 @@ class Pxls(object):
                                             msg = "@everyone " + msg
                                     if server_id in self.log_channels:
                                         msg += "\nGo to {} to see the logs".format(", ".join(
-                                            [str(self.bot.get_channel(i).mention) for i in self.log_channels[server_id]]))
+                                            [str(self.bot.get_channel(i).mention) for i in
+                                             self.log_channels[server_id]]))
                                     msg += "\nLet's clean everything up"
 
                                     for channel_id in set(self.alert_channels[server_id]):
@@ -318,7 +320,7 @@ class Pxls(object):
         """
         self.alert_channels.setdefault(ctx.message.server.id, []).append(ctx.message.channel.id)
         self.thresholds.setdefault(ctx.message.server.id, 5)
-        self.silence.setdefault(ctx.message.server.id, 5*60)
+        self.silence.setdefault(ctx.message.server.id, 5 * 60)
         self.last_alert.setdefault(ctx.message.server.id, 0)
         await self.bot.say("Will alert this channel")
 
