@@ -288,7 +288,7 @@ class Pxls(object):
 
     ### Actual commands
 
-    @commands.command(pass_context=True)
+    @commands.command(pass_context=True, hidden=True)
     async def assure(self, ctx):
         """
         Assures that all tasks are running
@@ -310,7 +310,7 @@ class Pxls(object):
             await self.bot.say("task_backup_maker is running")
 
 
-    @commands.command(pass_context=True)
+    @commands.command(pass_context=True, hidden=True)
     async def makebackup(self, ctx):
         if ctx.message.author.id == self.config["owner_id"]:
             await self.bot.send_typing(ctx.message.channel)
@@ -319,7 +319,7 @@ class Pxls(object):
         else:
             await self.bot.say("Only bot owner can force backups. They are done automatically every hour.")
 
-    @commands.command(pass_context=True)
+    @commands.command(pass_context=True, hidden=True)
     async def debugfakepixel(self, ctx, x: int, y: int, color_index: int):
         if ctx.message.author.id == self.config["owner_id"]:
             self.unprocessed_pixels.append({'x': x, 'y': y, 'color': color_index, 'debug': True})

@@ -53,7 +53,7 @@ async def on_command_error(error, ctx):
         traceback.print_exception(type(error), error, error.__traceback__)
 
 
-@bot.command(pass_context=True)
+@bot.command(pass_context=True, hidden=True)
 async def reload(ctx):
     """
     Reloads all modules.
@@ -90,7 +90,7 @@ async def bug(ctx):
         await bot.say("You can report bugs here.\nhttps://github.com/LittleEndu/pxls-alert-bot/issues")
 
 
-@bot.command(pass_context=True)
+@bot.command(pass_context=True, hidden=True)
 async def load(ctx, *, extension: str):
     """
     Load an extension.
@@ -107,7 +107,7 @@ async def load(ctx, *, extension: str):
         await bot.say(":x: Only the bot owner can load extensions")
 
 
-@bot.command(pass_context=True)
+@bot.command(pass_context=True, hidden=True)
 async def unload(ctx, *, extension: str):
     """
     Unload an extension.
@@ -123,7 +123,7 @@ async def unload(ctx, *, extension: str):
     else:
         await bot.say(":x: Only the bot owner can unload extensions")
 
-@bot.command(pass_context=True)
+@bot.command(pass_context=True, hidden=True)
 async def debug(ctx, *, command: str):
     """
     Run a debug command.
