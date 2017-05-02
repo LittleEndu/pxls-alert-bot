@@ -263,11 +263,15 @@ class Pxls(object):
                                     if entry_id in self.log_entries_cache:
                                         await self.bot.delete_message(self.log_entries_cache[entry_id])
                                         del self.log_entries_cache[entry_id]
-                                    if is_harmful or is_questionable:
-                                        self.log_entries_cache[entry_id] = await self.bot.send_message(
-                                            self.bot.get_channel(channel_id), embed=embed)
-                                    else:
-                                        await self.bot.send_message(self.bot.get_channel(channel_id), embed=embed)
+                                    try:
+                                        if is_harmful or is_questionable:
+                                            self.log_entries_cache[entry_id] = await self.bot.send_message(
+                                                self.bot.get_channel(channel_id), embed=embed)
+                                        else:
+                                            await self.bot.send_message(self.bot.get_channel(channel_id), embed=embed)
+                                    except discord.Forbidden:
+                                        await self.bot.send_message(self.bot.get_channel(channel_id),
+                                                                    "Allow me to embed links")
 
                 self.unprocessed_pixels.remove(pixel)
 
@@ -533,7 +537,10 @@ class Pxls(object):
                 emb.add_field(name=template['name'], value="{}% done".format(str(done / total * 100)[:5]))
         except:
             emb.add_field(name="Error!", value="No templates found")
-        await self.bot.send_message(ctx.message.channel, embed=emb)
+        try:
+            await self.bot.send_message(ctx.message.channel, embed=emb)
+        except discord.Forbidden:
+            await self.bot.say("Allow me to embed links")
 
     @commands.command(pass_context=True)
     async def directions(self, ctx, how_much=5, *, name=None):
@@ -578,20 +585,24 @@ class Pxls(object):
                 if xx == template['ox'] + template['w']:
                     xx = template['ox']
                     yy += 1
+
         if directions:
-            embed = discord.Embed()
-            random.shuffle(directions)
-            current = 0
-            for direct in directions[:how_much]:
-                if current < 16:
-                    embed.add_field(name=direct[0], value=direct[1])
-                    current += 1
-                else:
-                    await self.bot.send_message(ctx.message.channel, embed=embed)
-                    embed = discord.Embed()
-                    current = 0
-                    embed.add_field(name=direct[0], value=direct[1])
-            await self.bot.send_message(ctx.message.channel, embed=embed)
+            try:
+                embed = discord.Embed()
+                random.shuffle(directions)
+                current = 0
+                for direct in directions[:how_much]:
+                    if current < 16:
+                        embed.add_field(name=direct[0], value=direct[1])
+                        current += 1
+                    else:
+                        await self.bot.send_message(ctx.message.channel, embed=embed)
+                        embed = discord.Embed()
+                        current = 0
+                        embed.add_field(name=direct[0], value=direct[1])
+                await self.bot.send_message(ctx.message.channel, embed=embed)
+            except discord.Forbidden:
+                await self.bot.say("Allow me to embed links")
         else:
             await self.bot.say("Didn't find anything to do.\n"
                                "Maybe everything is already done :thinking:\n"
