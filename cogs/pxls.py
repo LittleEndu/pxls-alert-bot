@@ -189,6 +189,7 @@ class Pxls(object):
             try:
                 await asyncio.sleep(5)
                 for pixel in self.unprocessed_pixels[:]:
+                    self.unprocessed_pixels.remove(pixel) # So that loop won't be infinite
                     for server_id in set(self.log_channels.keys()).union(set(self.alert_channels.keys())):
                         if server_id in self.templates:
                             is_harmful = False
@@ -277,7 +278,7 @@ class Pxls(object):
                                             await self.bot.send_message(self.bot.get_channel(channel_id),
                                                                         "Allow me to embed links")
 
-                    self.unprocessed_pixels.remove(pixel)
+
             except Exception as error:
                 traceback.print_exception(type(error), error, error.__traceback__)
 
