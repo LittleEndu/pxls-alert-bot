@@ -570,6 +570,7 @@ class Pxls(object):
 
 If anything else is confusing you can always use the help command. Or try and find me in pxls discord
 """
+        await self.bot.say(msg)
 
     @commands.command(pass_context=True, aliases=['listtemplates'])
     async def status(self, ctx):
