@@ -452,6 +452,9 @@ class Pxls(object):
                 if not parameters["tw"] == str(im.size[0]):
                     await self.bot.say("Can't use scaled images.")
                     return
+            if im.size[0]*im.size[1] > 40000:
+                await self.bot.say("This imgae is too large! Please use images 200x200 in size or less.")
+                return
             info = dict()
             info["template"] = parameters["template"]
             info["ox"] = int(parameters["ox"])
