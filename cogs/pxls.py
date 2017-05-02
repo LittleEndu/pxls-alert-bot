@@ -389,7 +389,7 @@ class Pxls(object):
             await self.bot.say("Successfully set the threshold")
         except Exception as error:
             await self.bot.say("Error while setting threshold value.")
-            print(traceback.format_exception(type(error), error, error.__traceback__))
+            traceback.print_exception(type(error), error, error.__traceback__)
 
     @commands.command(pass_context=True)
     @commands.has_permissions(administrator=True)
@@ -405,7 +405,7 @@ class Pxls(object):
             await self.bot.say("Successfully set the silence")
         except Exception as error:
             await self.bot.say("Error while setting silence.")
-            print(traceback.format_exception(type(error), error, error.__traceback__))
+            traceback.print_exception(type(error), error, error.__traceback__)
 
     @commands.command(pass_context=True)
     async def showsettings(self, ctx):
@@ -435,7 +435,7 @@ class Pxls(object):
                 await self.bot.send_message(self.bot.get_channel(channel), msg)
         except Exception as error:
             await self.bot.say("Error while making test alert!")
-            print(traceback.format_exception(type(error), error, error.__traceback__))
+            traceback.print_exception(type(error), error, error.__traceback__)
 
     @commands.command(pass_context=True)
     @commands.has_permissions(administrator=True)
@@ -467,7 +467,7 @@ class Pxls(object):
             await self.bot.say("Successfully added the template.")
         except Exception as error:
             await self.bot.say("Error while adding template.")
-            print(traceback.format_exception(type(error), error, error.__traceback__))
+            traceback.print_exception(type(error), error, error.__traceback__)
 
     @commands.command(pass_context=True)
     async def listtemplates(self, ctx):
@@ -502,7 +502,7 @@ class Pxls(object):
                 await self.bot.say("Didn't find such template.")
         except Exception as error:
             await self.bot.say("Error while removing template.")
-            print(traceback.format_exception(type(error), error, error.__traceback__))
+            traceback.print_exception(type(error), error, error.__traceback__)
 
     @commands.command(pass_context=True)
     async def status(self, ctx):
