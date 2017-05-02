@@ -276,6 +276,7 @@ class Pxls(object):
     @commands.command(pass_context=True)
     async def makebackup(self, ctx):
         if ctx.message.author.id == self.config["owner_id"]:
+            await self.bot.send_typing(ctx.message.channel)
             self.make_backup()
             await self.bot.say("Successfully made backup")
         else:
@@ -532,6 +533,7 @@ class Pxls(object):
         """
         Gives directions on what to place
         """
+        await self.bot.send_typing(ctx.message.channel)
         if how_much < 6:
             how_much = 6
         if how_much > 32:
