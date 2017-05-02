@@ -24,11 +24,12 @@ async def on_ready():
     print(bot.user.name)
     print(bot.user.id)
     print('------')
-    if config['status']:
-        game = discord.Game(name=config['status'])
-        await bot.change_presence(game=game)
-    else:
-        print("No status")
+    try:
+        if config['status']:
+            game = discord.Game(name=config['status'])
+            await bot.change_presence(game=game)
+    except:
+        pass
 
 
 @bot.event
@@ -75,6 +76,18 @@ async def reload(ctx):
             await bot.say('Reloaded all extensions.')
     else:
         await bot.say(":x: Only the bot owner can reload extensions")
+
+@bot.command(pass_context=True)
+async def bug(ctx):
+    """
+    Link github
+    """
+    try:
+        em = discord.Embed()
+        em.add_field(name="You can report bugs here.",value="https://github.com/LittleEndu/pxls-alert-bot/issues")
+        await bot.send_message(ctx.message.channel,embed=em)
+    except discord.Forbidden:
+        await bot.say("You can report bugs here.\nhttps://github.com/LittleEndu/pxls-alert-bot/issues")
 
 
 @bot.command(pass_context=True)
