@@ -46,9 +46,9 @@ class Pxls(object):
         self.silence = self.find_backup("silence")
         self.last_alert = self.find_backup("last-alert")
 
-        self.bot.loop.create_task(self.task_pxls_spectator())
-        self.bot.loop.create_task(self.task_pixels_processor())
-        self.bot.loop.create_task(self.task_backup_maker())
+        self.spectator = self.bot.loop.create_task(self.task_pxls_spectator())
+        self.processor = self.bot.loop.create_task(self.task_pixels_processor())
+        self.backer = self.bot.loop.create_task(self.task_backup_maker())
 
     def find_backup(self, name):
         for file in os.listdir("backups"):
@@ -128,20 +128,6 @@ class Pxls(object):
                 if file != "{}{}.json".format(name, date):
                     os.remove("backups/{}".format(file))
 
-    async def task_pxls_spectator(self):
-        while True:
-            try:
-                async with websockets.connect("ws://pxls.space/ws", extra_headers={"Cookie": "pxls-agegate=1"}) as ws:
-                    await self.initpxls()
-                    while True:
-                        info = literal_eval(await ws.recv())
-                        if info["type"] == "pixel":
-                            for px in info["pixels"]:
-                                self.boarddata[px['x'] + px['y'] * self.width] = px['color']
-                                self.unprocessed_pixels.append({"x": px['x'], "y": px['y'], "color": px['color']})
-            except websockets.ConnectionClosed:
-                await asyncio.sleep(60)
-
     def pixel_into_embed(self, pixel, is_helpful, is_harmful, is_questionable, on_templates, should_be, to_add=None):
         title = ""
         color = 0x000000
@@ -184,98 +170,138 @@ class Pxls(object):
         em.add_field(name=name, value=value)
         return em
 
+    async def task_pxls_spectator(self):
+        while True:
+            try:
+                async with websockets.connect("ws://pxls.space/ws", extra_headers={"Cookie": "pxls-agegate=1"}) as ws:
+                    await self.initpxls()
+                    while True:
+                        info = literal_eval(await ws.recv())
+                        if info["type"] == "pixel":
+                            for px in info["pixels"]:
+                                self.boarddata[px['x'] + px['y'] * self.width] = px['color']
+                                self.unprocessed_pixels.append({"x": px['x'], "y": px['y'], "color": px['color']})
+            except websockets.ConnectionClosed:
+                await asyncio.sleep(60)
+
     async def task_pixels_processor(self):
         while True:
-            await asyncio.sleep(5)
-            for pixel in self.unprocessed_pixels[:]:
-                # Log pixels
-                for server_id in set(self.log_channels.keys()).union(set(self.alert_channels.keys())):
-                    if server_id in self.templates:
-                        is_harmful = False
-                        is_helpful = False
-                        is_questionable = False
-                        on_templates = list()
-                        should_be = list()
-                        for template in self.templates[server_id]:
-                            assert isinstance(pixel, dict)
-                            xx = pixel["x"] - template["ox"]
-                            yy = pixel["y"] - template["oy"]
-                            # if pixel is on template
-                            if xx >= 0 and yy >= 0 and xx < template["w"] and yy < template["h"] and template["data"][
-                                        xx + yy * template["w"]] != -1:
+            try:
+                await asyncio.sleep(5)
+                for pixel in self.unprocessed_pixels[:]:
+                    for server_id in set(self.log_channels.keys()).union(set(self.alert_channels.keys())):
+                        if server_id in self.templates:
+                            is_harmful = False
+                            is_helpful = False
+                            is_questionable = False
+                            on_templates = list()
+                            should_be = list()
+                            for template in self.templates[server_id]:
+                                assert isinstance(pixel, dict)
+                                xx = pixel["x"] - template["ox"]
+                                yy = pixel["y"] - template["oy"]
+                                # if pixel is on template
+                                if xx >= 0 and yy >= 0 and xx < template["w"] and yy < template["h"] and \
+                                                template["data"][
+                                                            xx + yy * template["w"]] != -1:
 
-                                on_templates.append(template)
-                                should_be.append(template["data"][xx + yy * template["w"]])
-                                # if the colors match
-                                if pixel["color"] == template["data"][xx + yy * template["w"]]:
-                                    is_helpful = True
-                                else:
-                                    keep_going = True
-                                    for ix in range(-1, 3, 1):
-                                        if keep_going:
-                                            if ix == 2:
-                                                is_harmful = True
-                                                break
-                                            for iy in range(-1, 2, 1):
-                                                try:
-                                                    # look for pixels around the placed one
-                                                    if pixel["color"] == template["data"][
-                                                                        xx + ix + (yy + iy) * template["w"]]:
-                                                        is_questionable = True
-                                                        keep_going = False
-                                                        break
-                                                except:
-                                                    continue
-                        if is_harmful:
-                            self.scores[server_id] = self.scores.setdefault(server_id, 0) - 1
-                        if is_helpful:
-                            self.scores[server_id] = self.scores.setdefault(server_id, 0) * 0.5 + 1
-                        if is_questionable:
-                            self.scores[server_id] = self.scores.setdefault(server_id, 0) * 0.8
-                        try:
-                            if self.last_alert[server_id] < time.time() - self.silence[server_id]:
-                                if self.scores[server_id] <= self.thresholds[server_id] * -1:
-                                    self.last_alert[server_id] = time.time()
-                                    self.scores[server_id] += 10
-                                    msg = "\nDamage done is over threshold value" \
-                                          "\nUse ``{}directions`` for directions".format(self.config['prefix'])
-                                    if server_id in self.mentions:
-                                        msg = "".join([str(i) for i in self.mentions[server_id]]) + msg
-                                        if [i for i in self.bot.get_server(server_id).roles if i.name == "@everyone"][
-                                            0].mention in self.mentions[server_id]:
-                                            msg = "@everyone " + msg
-                                    if server_id in self.log_channels:
-                                        msg += "\nGo to {} to see the logs".format(", ".join(
-                                            [str(self.bot.get_channel(i).mention) for i in
-                                             self.log_channels[server_id]]))
-                                    msg += "\nLet's clean everything up"
+                                    on_templates.append(template)
+                                    should_be.append(template["data"][xx + yy * template["w"]])
+                                    # if the colors match
+                                    if pixel["color"] == template["data"][xx + yy * template["w"]]:
+                                        is_helpful = True
+                                    else:
+                                        keep_going = True
+                                        for ix in range(-1, 3, 1):
+                                            if keep_going:
+                                                if ix == 2:
+                                                    is_harmful = True
+                                                    break
+                                                for iy in range(-1, 2, 1):
+                                                    try:
+                                                        # look for pixels around the placed one
+                                                        if pixel["color"] == template["data"][
+                                                                            xx + ix + (yy + iy) * template["w"]]:
+                                                            is_questionable = True
+                                                            keep_going = False
+                                                            break
+                                                    except:
+                                                        continue
+                            if is_harmful:
+                                self.scores[server_id] = self.scores.setdefault(server_id, 0) - 1
+                            if is_helpful:
+                                self.scores[server_id] = self.scores.setdefault(server_id, 0) * 0.5 + 1
+                            if is_questionable:
+                                self.scores[server_id] = self.scores.setdefault(server_id, 0) * 0.8
+                            try:
+                                if self.last_alert[server_id] < time.time() - self.silence[server_id]:
+                                    if self.scores[server_id] <= self.thresholds[server_id] * -1:
+                                        self.last_alert[server_id] = time.time()
+                                        self.scores[server_id] += 10
+                                        msg = "\nDamage done is over threshold value" \
+                                              "\nUse ``{}directions`` for directions".format(self.config['prefix'])
+                                        if server_id in self.mentions:
+                                            msg = "".join([str(i) for i in self.mentions[server_id]]) + msg
+                                            if [i for i in self.bot.get_server(server_id).roles if
+                                                i.name == "@everyone"][
+                                                0].mention in self.mentions[server_id]:
+                                                msg = "@everyone " + msg
+                                        if server_id in self.log_channels:
+                                            msg += "\nGo to {} to see the logs".format(", ".join(
+                                                [str(self.bot.get_channel(i).mention) for i in
+                                                 self.log_channels[server_id]]))
+                                        msg += "\nLet's clean everything up"
 
-                                    for channel_id in set(self.alert_channels[server_id]):
-                                        await self.bot.send_message(self.bot.get_channel(channel_id), msg)
-                        except:
-                            pass
-                        if on_templates:
-                            embed = self.pixel_into_embed(pixel, is_helpful, is_harmful, is_questionable, on_templates,
-                                                          should_be)
-                            if server_id in self.log_channels:
-                                for channel_id in set(self.log_channels[server_id]):
-                                    entry_id = "x".join([channel_id, str(pixel['x']), str(pixel['y'])])
-                                    if entry_id in self.log_entries_cache:
-                                        await self.bot.delete_message(self.log_entries_cache[entry_id])
-                                        del self.log_entries_cache[entry_id]
-                                    try:
-                                        if is_harmful or is_questionable:
-                                            self.log_entries_cache[entry_id] = await self.bot.send_message(
-                                                self.bot.get_channel(channel_id), embed=embed)
-                                        else:
-                                            await self.bot.send_message(self.bot.get_channel(channel_id), embed=embed)
-                                    except discord.Forbidden:
-                                        await self.bot.send_message(self.bot.get_channel(channel_id),
-                                                                    "Allow me to embed links")
+                                        for channel_id in set(self.alert_channels[server_id]):
+                                            await self.bot.send_message(self.bot.get_channel(channel_id), msg)
+                            except:
+                                pass
+                            if on_templates:
+                                embed = self.pixel_into_embed(pixel, is_helpful, is_harmful, is_questionable,
+                                                              on_templates,
+                                                              should_be)
+                                if server_id in self.log_channels:
+                                    for channel_id in set(self.log_channels[server_id]):
+                                        entry_id = "x".join([channel_id, str(pixel['x']), str(pixel['y'])])
+                                        if entry_id in self.log_entries_cache:
+                                            await self.bot.delete_message(self.log_entries_cache[entry_id])
+                                            del self.log_entries_cache[entry_id]
+                                        try:
+                                            if is_harmful or is_questionable:
+                                                self.log_entries_cache[entry_id] = await self.bot.send_message(
+                                                    self.bot.get_channel(channel_id), embed=embed)
+                                            else:
+                                                await self.bot.send_message(self.bot.get_channel(channel_id),
+                                                                            embed=embed)
+                                        except discord.Forbidden:
+                                            await self.bot.send_message(self.bot.get_channel(channel_id),
+                                                                        "Allow me to embed links")
 
-                self.unprocessed_pixels.remove(pixel)
+                    self.unprocessed_pixels.remove(pixel)
+            except Exception as error:
+                traceback.print_exception(type(error), error, error.__traceback__)
 
     ### Actual commands
+
+    @commands.command(pass_context=True)
+    async def assure(self, ctx):
+        """
+        Assures that all tasks are running
+        """
+        for task in [self.spectator, self.backer, self.processor]:
+            if task.cr_running:
+                await self.bot.say("{} is running".format(task.__name__))
+            else:
+                await self.bot.say("Restarting {}".format(task.__name__))
+                if task.__name__ == "task_pxls_spectator":
+                    self.spectator = self.bot.loop.create_task(self.task_pxls_spectator())
+                elif task.__name__ == "task_pixels_processor":
+                    self.processor = self.bot.loop.create_task(self.task_pixels_processor())
+                elif task.__name__ == "task_backup_maker":
+                    self.backer = self.bot.loop.create_task(self.task_backup_maker())
+                else:
+                    await self.bot.say("Unknown edge case")
+                    print("Error in assure: {}".format(task.__name__))
 
     @commands.command(pass_context=True)
     async def makebackup(self, ctx):
