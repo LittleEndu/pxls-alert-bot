@@ -289,7 +289,7 @@ class Pxls(object):
         """
         Assures that all tasks are running
         """
-        for task in [self.spectator, self.backer, self.processor]:
+        for task in [self.spectator._coro, self.backer._coro, self.processor._coro]:
             if task.cr_running:
                 await self.bot.say("{} is running".format(task.__name__))
             else:
