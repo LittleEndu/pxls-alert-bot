@@ -39,8 +39,11 @@ async def on_command_error(error, ctx):
     elif isinstance(error, commands.errors.CheckFailure):
         await bot.send_message(ctx.message.channel, ":x: Check failed. You probably don't have permission to do this.")
         return
+    elif isinstance(error, commands.errors.CommandNotFound):
+        await bot.send_message(ctx.message.channel, ":question:")
+        return
     else:
-        print(traceback.format_exception(type(error), error, error.__traceback__))
+        traceback.print_exception(type(error), error, error.__traceback__)
 
 
 @bot.command(pass_context=True)
