@@ -444,6 +444,7 @@ class Pxls(object):
         Adds template from url
         """
         await self.bot.send_typing(ctx.message.channel)
+        im = None
         try:
             parameters = {i.split("=")[0]: i.split("=")[1] for i in url[url.find("#") + 1:].split("&")}
             async with aiohttp.ClientSession() as session:
@@ -468,6 +469,11 @@ class Pxls(object):
         except Exception as error:
             await self.bot.say("Error while adding template.")
             traceback.print_exception(type(error), error, error.__traceback__)
+            if im:
+                image_data = [i for i in im.getdata()]
+                with open("debug.txt","w") as file_out:
+                    file_out.write(str(image_data))
+
 
     @commands.command(pass_context=True)
     async def listtemplates(self, ctx):
