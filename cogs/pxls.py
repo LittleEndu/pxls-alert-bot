@@ -274,7 +274,6 @@ class Pxls(object):
     ### Actual commands
 
     @commands.command(pass_context=True)
-    @commands.has_permissions(administrator=True)
     async def makebackup(self, ctx):
         if ctx.message.author.id == self.config["owner_id"]:
             self.make_backup()
@@ -283,7 +282,6 @@ class Pxls(object):
             await self.bot.say("Only bot owner can force backups. They are done automatically every hour.")
 
     @commands.command(pass_context=True)
-    @commands.has_permissions(administrator=True)
     async def debugfakepixel(self, ctx, x: int, y: int, color_index: int):
         if ctx.message.author.id == self.config["owner_id"]:
             self.unprocessed_pixels.append({'x': x, 'y': y, 'color': color_index, 'debug': True})
@@ -296,6 +294,8 @@ class Pxls(object):
     async def startlogs(self, ctx):
         """
         Starts logs in this channel
+
+        Logs show every pixel that's placed on any template added with addtemplate
         """
         self.log_channels.setdefault(ctx.message.server.id, []).append(ctx.message.channel.id)
         await self.bot.say("Will show logs to this channel")
@@ -317,6 +317,10 @@ class Pxls(object):
     async def startalerts(self, ctx):
         """
         Starts alerts in this channel
+
+        Alerts happen when 1) Currently there's damage over threshold 2) enough time as passed from last alert
+        The time is controlled with setsilence
+        The threshold is controller with setthreshold
         """
         self.alert_channels.setdefault(ctx.message.server.id, []).append(ctx.message.channel.id)
         self.thresholds.setdefault(ctx.message.server.id, 5)
@@ -347,6 +351,8 @@ class Pxls(object):
     async def addmention(self, ctx, role: discord.Role):
         """
         Adds a role what to mention in alerts
+
+        The role needs to be mentionable for it to work. Everyone is a valid role, Here isn't.
         """
         self.mentions.setdefault(ctx.message.server.id, []).append(role.mention)
         await self.bot.say("Successfully added the role to mentions list")
@@ -401,6 +407,17 @@ class Pxls(object):
             print(traceback.format_exception(type(error), error, error.__traceback__))
 
     @commands.command(pass_context=True)
+    async def showsettings(self, ctx, minutes: float):
+        """
+        Shows current settings
+        """
+        try:
+            await self.bot.say("silence time: {}\nthreshold: {}".format(self.silence[ctx.message.server.id],
+                                                                        self.thresholds[ctx.message.server.id]))
+        except:
+            await self.bot.say("Server not set up correctly! Might be missing alert channels")
+
+    @commands.command(pass_context=True)
     @commands.has_permissions(administrator=True)
     async def testalert(self, ctx):
         """
@@ -425,6 +442,7 @@ class Pxls(object):
         """
         Adds template from url
         """
+        await self.bot.send_typing(ctx.message.channel)
         try:
             parameters = {i.split("=")[0]: i.split("=")[1] for i in url[url.find("#") + 1:].split("&")}
             async with aiohttp.ClientSession() as session:
@@ -461,6 +479,50 @@ class Pxls(object):
                 fmt = fmt[1500:]
         except:
             await self.bot.say("No templates have been added")
+
+    @commands.command(pass_context=True)
+    @commands.has_permissions(administrator=True)
+    async def removetemplate(self, ctx, *, name: str):
+        """
+        Removes template using name
+        """
+        try:
+            removed = 0
+            for template in self.templates[ctx.message.server.id][:]:
+                if template["name"] == name:
+                    self.templates[ctx.message.server.id].remove(template)
+                    removed += 1
+            if removed:
+                await self.bot.say("Successfully removed {} template{}.".format(removed, "" if removed == 1 else "s"))
+            else:
+                await self.bot.say("Didn't find such template.")
+        except Exception as error:
+            await self.bot.say("Error while removing template.")
+            print(traceback.format_exception(type(error), error, error.__traceback__))
+
+    @commands.command(pass_context=True)
+    async def status(self, ctx):
+        """
+        Shows status on templates
+        """
+        emb = discord.Embed()
+        try:
+            for template in self.templates[ctx.message.server.id]:
+                total = 0
+                done = 0
+                ox = template['ox']
+                oy = template['oy']
+                for xx in range(template['w']):
+                    for yy in range(template['h']):
+                        if template['data'][xx + yy * template['w']] != -1:
+                            total += 1
+                            if template['data'][xx + yy * template['w']] == self.boarddata[
+                                                xx + ox + (yy + oy) * self.width]:
+                                done += 1
+                emb.add_field(name=template['name'], value="{}% done".format(str(done / total * 100)[:5]))
+        except:
+            emb.add_field(name="Error!", value="No templates found")
+        await self.bot.send_message(ctx.message.channel, embed=emb)
 
     @commands.command(pass_context=True)
     async def directions(self, ctx, how_much=5, *, name=None):
@@ -522,51 +584,6 @@ class Pxls(object):
             await self.bot.say("Didn't find anything to do.\n"
                                "Maybe everything is already done :thinking:\n"
                                "Or there's no such template :shrug:")
-
-    @commands.command(pass_context=True)
-    @commands.has_permissions(administrator=True)
-    async def removetemplate(self, ctx, *, name: str):
-        """
-        Removes template using name
-        """
-        try:
-            removed = 0
-            for template in self.templates[ctx.message.server.id][:]:
-                if template["name"] == name:
-                    self.templates[ctx.message.server.id].remove(template)
-                    removed += 1
-            if removed:
-                await self.bot.say("Successfully removed {} template{}.".format(removed, "" if removed == 1 else "s"))
-            else:
-                await self.bot.say("Didn't find such template.")
-        except Exception as error:
-            await self.bot.say("Error while removing template.")
-            print(traceback.format_exception(type(error), error, error.__traceback__))
-
-    @commands.command(pass_context=True)
-    @commands.has_permissions(administrator=True)
-    async def status(self, ctx):
-        """
-        Shows status on templates
-        """
-        emb = discord.Embed()
-        try:
-            for template in self.templates[ctx.message.server.id]:
-                total = 0
-                done = 0
-                ox = template['ox']
-                oy = template['oy']
-                for xx in range(template['w']):
-                    for yy in range(template['h']):
-                        if template['data'][xx + yy * template['w']] != -1:
-                            total += 1
-                            if template['data'][xx + yy * template['w']] == self.boarddata[
-                                                xx + ox + (yy + oy) * self.width]:
-                                done += 1
-                emb.add_field(name=template['name'], value="{}% done".format(str(done / total * 100)[:5]))
-        except:
-            emb.add_field(name="Error!", value="No templates found")
-        await self.bot.send_message(ctx.message.channel, embed=emb)
 
 
 def setup(bot):
