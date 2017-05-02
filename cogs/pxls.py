@@ -407,7 +407,7 @@ class Pxls(object):
             print(traceback.format_exception(type(error), error, error.__traceback__))
 
     @commands.command(pass_context=True)
-    async def showsettings(self, ctx, minutes: float):
+    async def showsettings(self, ctx):
         """
         Shows current settings
         """
