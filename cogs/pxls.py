@@ -1,7 +1,9 @@
 import asyncio
 import datetime
 import json
+import time
 import os
+import random
 import struct
 import traceback
 import urllib.parse
@@ -28,15 +30,21 @@ class Pxls(object):
 
         self.width = 0
         self.height = 0
-        self.color_tuple = list()
+        self.color_tuples = list()
         self.boarddata = bytearray()
         self.unprocessed_pixels = list()
         self.log_entries_cache = dict()
+
         if not os.path.isdir("backups"):
             os.makedirs("backups")
         self.templates = self.find_backup("templates")
         self.log_channels = self.find_backup("log-channels")
+        self.alert_channels = self.find_backup("alert-channels")
         self.thresholds = self.find_backup("thresholds")
+        self.scores = self.find_backup("scores")
+        self.mentions = self.find_backup("mentions")
+        self.silence = self.find_backup("silence")
+        self.last_alert = self.find_backup("last-alert")
 
         self.bot.loop.create_task(self.task_pxls_spectator())
         self.bot.loop.create_task(self.task_pixels_processor())
@@ -95,11 +103,17 @@ class Pxls(object):
         while True:
             await asyncio.sleep(3600)
             self.make_backup()
+            await self.initpxls()
 
     def make_backup(self):
         self.backup_info(self.templates, "templates")
         self.backup_info(self.log_channels, "log-channels")
+        self.backup_info(self.alert_channels, "alert-channels")
         self.backup_info(self.thresholds, "thresholds")
+        self.backup_info(self.scores, "scores")
+        self.backup_info(self.mentions, "mentions")
+        self.backup_info(self.silence, "silence")
+        self.backup_info(self.last_alert, "last-alert")
 
     def backup_info(self, info, name):
         if not os.path.isdir("backups"):
@@ -115,15 +129,15 @@ class Pxls(object):
                     os.remove("backups/{}".format(file))
 
     async def task_pxls_spectator(self):
-        await self.initpxls()
         while True:
             try:
                 async with websockets.connect("ws://pxls.space/ws", extra_headers={"Cookie": "pxls-agegate=1"}) as ws:
+                    await self.initpxls()
                     while True:
                         info = literal_eval(await ws.recv())
                         if info["type"] == "pixel":
                             for px in info["pixels"]:
-                                self.boarddata[px['x'] * self.width + px['y']] = px['color']
+                                self.boarddata[px['x'] + px['y'] * self.width] = px['color']
                                 self.unprocessed_pixels.append({"x": px['x'], "y": px['y'], "color": px['color']})
             except websockets.ConnectionClosed:
                 await asyncio.sleep(60)
@@ -174,7 +188,7 @@ class Pxls(object):
             await asyncio.sleep(5)
             for pixel in self.unprocessed_pixels[:]:
                 # Log pixels
-                for server_id in self.log_channels:
+                for server_id in set(self.log_channels.keys()).union(set(self.alert_channels.keys())):
                     if server_id in self.templates:
                         is_harmful = False
                         is_helpful = False
@@ -187,46 +201,71 @@ class Pxls(object):
                             yy = pixel["y"] - template["oy"]
                             # if pixel is on template
                             if xx >= 0 and yy >= 0 and xx < template["w"] and yy < template["h"] and template["data"][
-                                                yy * template["w"] + xx] != -1:
+                                        xx + yy * template["w"]] != -1:
 
                                 on_templates.append(template)
-                                should_be.append(template["data"][yy * template["w"] + xx])
+                                should_be.append(template["data"][xx + yy * template["w"]])
                                 # if the colors match
-                                if pixel["color"] == template["data"][yy * template["w"] + xx]:
+                                if pixel["color"] == template["data"][xx + yy * template["w"]]:
                                     is_helpful = True
-                                    template["score"] = template["score"] * 0.5 + 1
                                 else:
                                     keep_going = True
                                     for ix in range(-1, 3, 1):
                                         if keep_going:
                                             if ix == 2:
                                                 is_harmful = True
-                                                template["score"] = template["score"] * 0.9 - 1
                                                 break
                                             for iy in range(-1, 2, 1):
                                                 try:
                                                     # look for pixels around the placed one
                                                     if pixel["color"] == template["data"][
-                                                                                (yy + iy) * template["w"] + xx + ix]:
+                                                                        xx + ix + (yy + iy) * template["w"]]:
                                                         is_questionable = True
-                                                        template["score"] = template["score"] * 0.9 - 0.5
                                                         keep_going = False
                                                         break
                                                 except:
                                                     continue
+                        if is_harmful:
+                            self.scores[server_id] = self.scores.setdefault(server_id, 0) - 1
+                        if is_helpful:
+                            self.scores[server_id] = self.scores.setdefault(server_id, 0) * 0.5 + 1
+                        if is_questionable:
+                            self.scores[server_id] = self.scores.setdefault(server_id, 0) * 0.8
+                        try:
+                            if self.last_alert[server_id] < time.time() - self.silence[server_id]:
+                                if self.scores[server_id] <= self.thresholds[server_id] * -1:
+                                    self.last_alert[server_id] = time.time()
+                                    self.scores[server_id] += 10
+                                    msg = "\nDamage done is over threshold value" \
+                                          "\nUse ``{}directions`` for directions".format(self.config['prefix'])
+                                    if server_id in self.mentions:
+                                        msg = "".join([str(i) for i in self.mentions[server_id]]) + msg
+                                        if [i for i in self.bot.get_server(server_id).roles if i.name == "@everyone"][
+                                            0].mention in self.mentions[server_id]:
+                                            msg = "@everyone " + msg
+                                    if server_id in self.log_channels:
+                                        msg += "\nGo to {} to see the logs".format(", ".join(
+                                            [str(self.bot.get_channel(i).mention) for i in self.log_channels[server_id]]))
+                                    msg += "\nLet's clean everything up"
+
+                                    for channel_id in set(self.alert_channels[server_id]):
+                                        await self.bot.send_message(self.bot.get_channel(channel_id), msg)
+                        except:
+                            pass
                         if on_templates:
                             embed = self.pixel_into_embed(pixel, is_helpful, is_harmful, is_questionable, on_templates,
                                                           should_be)
-                            for channel_id in set(self.log_channels[server_id]):
-                                entry_id = "x".join([channel_id, str(pixel['x']), str(pixel['y'])])
-                                if entry_id in self.log_entries_cache:
-                                    await self.bot.delete_message(self.log_entries_cache[entry_id])
-                                    del self.log_entries_cache[entry_id]
-                                if is_harmful or is_questionable:
-                                    self.log_entries_cache[entry_id] = await self.bot.send_message(
-                                        self.bot.get_channel(channel_id), embed=embed)
-                                else:
-                                    await self.bot.send_message(self.bot.get_channel(channel_id), embed=embed)
+                            if server_id in self.log_channels:
+                                for channel_id in set(self.log_channels[server_id]):
+                                    entry_id = "x".join([channel_id, str(pixel['x']), str(pixel['y'])])
+                                    if entry_id in self.log_entries_cache:
+                                        await self.bot.delete_message(self.log_entries_cache[entry_id])
+                                        del self.log_entries_cache[entry_id]
+                                    if is_harmful or is_questionable:
+                                        self.log_entries_cache[entry_id] = await self.bot.send_message(
+                                            self.bot.get_channel(channel_id), embed=embed)
+                                    else:
+                                        await self.bot.send_message(self.bot.get_channel(channel_id), embed=embed)
 
                 self.unprocessed_pixels.remove(pixel)
 
@@ -273,6 +312,113 @@ class Pxls(object):
 
     @commands.command(pass_context=True)
     @commands.has_permissions(administrator=True)
+    async def startalerts(self, ctx):
+        """
+        Starts alerts in this channel
+        """
+        self.alert_channels.setdefault(ctx.message.server.id, []).append(ctx.message.channel.id)
+        self.thresholds.setdefault(ctx.message.server.id, 5)
+        self.silence.setdefault(ctx.message.server.id, 5*60)
+        self.last_alert.setdefault(ctx.message.server.id, 0)
+        await self.bot.say("Will alert this channel")
+
+    @commands.command(pass_context=True)
+    @commands.has_permissions(administrator=True)
+    async def stopalerts(self, ctx):
+        """
+        Stops alerts in this channel
+        """
+        try:
+            self.alert_channels[ctx.message.server.id].remove(ctx.message.channel.id)
+            await self.bot.say("Successfully removed channel from alerts list")
+        except:
+            await self.bot.say("That channel isn't in the alerts list")
+        # lazy code
+        try:
+            while True:
+                self.alert_channels[ctx.message.server.id].remove(ctx.message.channel.id)
+        except:
+            pass
+
+    @commands.command(pass_context=True)
+    @commands.has_permissions(administrator=True)
+    async def addmention(self, ctx, role: discord.Role):
+        """
+        Adds a role what to mention in alerts
+        """
+        self.mentions.setdefault(ctx.message.server.id, []).append(role.mention)
+        await self.bot.say("Successfully added the role to mentions list")
+
+    @commands.command(pass_context=True)
+    @commands.has_permissions(administrator=True)
+    async def removemention(self, ctx, role: discord.Role):
+        """
+        Removes a role from what to mention in alerts
+        """
+        try:
+            self.mentions[ctx.message.server.id].remove(role.mention)
+            await self.bot.say("Successfully removed tole from mentions list")
+        except:
+            await self.bot.say("That role isn't in the mentions list")
+        try:
+            while True:
+                self.mentions[ctx.message.server.id].remove(role.mention)
+        except:
+            pass
+
+    @commands.command(pass_context=True)
+    @commands.has_permissions(administrator=True)
+    async def setthreshold(self, ctx, value: float):
+        """
+        Set the threshold value used for alerts
+        """
+        try:
+            if value < 0:
+                await self.bot.say("Threshold must be positive")
+                return
+            self.thresholds[ctx.message.server.id] = value
+            await self.bot.say("Successfully set the threshold")
+        except Exception as error:
+            await self.bot.say("Error while setting threshold value.")
+            print(traceback.format_exception(type(error), error, error.__traceback__))
+
+    @commands.command(pass_context=True)
+    @commands.has_permissions(administrator=True)
+    async def setsilence(self, ctx, minutes: float):
+        """
+        Set the silence time for alerts
+        """
+        try:
+            if minutes < 0:
+                await self.bot.say("Minutes must be positive")
+                return
+            self.silence[ctx.message.server.id] = minutes * 60
+            await self.bot.say("Successfully set the silence")
+        except Exception as error:
+            await self.bot.say("Error while setting silence.")
+            print(traceback.format_exception(type(error), error, error.__traceback__))
+
+    @commands.command(pass_context=True)
+    @commands.has_permissions(administrator=True)
+    async def testalert(self, ctx):
+        """
+        Does a test alert.
+        """
+        try:
+            for channel in self.alert_channels[ctx.message.server.id]:
+                msg = "\nTEST ALERT"
+                if ctx.message.server.id in self.mentions:
+                    msg = "".join([str(i) for i in self.mentions[ctx.message.server.id]]) + msg
+                    if [i for i in self.bot.get_server(ctx.message.server.id).roles if i.name == "@everyone"][
+                        0].mention in self.mentions[ctx.message.server.id]:
+                        msg = "@everyone " + msg
+                await self.bot.send_message(self.bot.get_channel(channel), msg)
+        except Exception as error:
+            await self.bot.say("Error while making test alert!")
+            print(traceback.format_exception(type(error), error, error.__traceback__))
+
+    @commands.command(pass_context=True)
+    @commands.has_permissions(administrator=True)
     async def addtemplate(self, ctx, url: str, *, name: str):
         """
         Adds template from url
@@ -291,10 +437,8 @@ class Pxls(object):
             info["ox"] = int(parameters["ox"])
             info["oy"] = int(parameters["oy"])
             info["data"] = [self.get_nearest_pixel_index(i, self.color_tuples) for i in im.getdata()]
-            print(im.size)
             info["w"], info["h"] = im.size
             info["name"] = name
-            info["score"] = 0
             self.templates.setdefault(ctx.message.server.id, []).append(info)
             await self.bot.say("Successfully added the template.")
         except Exception as error:
@@ -302,7 +446,6 @@ class Pxls(object):
             print(traceback.format_exception(type(error), error, error.__traceback__))
 
     @commands.command(pass_context=True)
-    @commands.has_permissions(administrator=True)
     async def listtemplates(self, ctx):
         """
         List all templates
@@ -318,6 +461,67 @@ class Pxls(object):
             await self.bot.say("No templates have been added")
 
     @commands.command(pass_context=True)
+    async def directions(self, ctx, how_much=5, *, name=None):
+        """
+        Gives directions on what to place
+        """
+        if how_much < 6:
+            how_much = 6
+        if how_much > 32:
+            await self.bot.say("I won't give out more than 32 directions")
+            how_much = 32
+        if how_much % 2 == 1:
+            how_much += 1
+        directions = list()
+        if not ctx.message.server.id in self.templates:
+            await self.bot.say("No templates found... Can't give directions :'(")
+            return
+        for template in self.templates[ctx.message.server.id]:
+            if name is not None:
+                if template["name"] != name:
+                    continue
+            total = 0
+            xx = template['ox']
+            yy = template['oy']
+            for pixel in template['data']:
+                if pixel == -1:
+                    xx += 1
+                    if xx == template['ox'] + template['w']:
+                        xx = template['ox']
+                        yy += 1
+                    continue
+                if not self.boarddata[xx + yy * self.width] == pixel:
+                    url = "https://pxls.space/#template={}&ox={}&oy={}&x={}&y={}&scale=50&oo=0.5".format(
+                        template["template"], template['ox'], template['oy'], xx, yy)
+                    directions.append(["Pixel at x={}, y={} should be {}".format(xx, yy, self.get_color_name(
+                        self.color_tuples[pixel])), "[Link to {}]({})".format(template['name'], url)])
+                    total += 1
+                    if total >= how_much:
+                        break
+                xx += 1
+                if xx == template['ox'] + template['w']:
+                    xx = template['ox']
+                    yy += 1
+        if directions:
+            embed = discord.Embed()
+            random.shuffle(directions)
+            current = 0
+            for direct in directions[:how_much]:
+                if current < 16:
+                    embed.add_field(name=direct[0], value=direct[1])
+                    current += 1
+                else:
+                    await self.bot.send_message(ctx.message.channel, embed=embed)
+                    embed = discord.Embed()
+                    current = 0
+                    embed.add_field(name=direct[0], value=direct[1])
+            await self.bot.send_message(ctx.message.channel, embed=embed)
+        else:
+            await self.bot.say("Didn't find anything to do.\n"
+                               "Maybe everything is already done :thinking:\n"
+                               "Or there's no such template :shrug:")
+
+    @commands.command(pass_context=True)
     @commands.has_permissions(administrator=True)
     async def removetemplate(self, ctx, *, name: str):
         """
@@ -325,7 +529,7 @@ class Pxls(object):
         """
         try:
             removed = 0
-            for template in self.templates[ctx.message.server.id]:
+            for template in self.templates[ctx.message.server.id][:]:
                 if template["name"] == name:
                     self.templates[ctx.message.server.id].remove(template)
                     removed += 1
@@ -336,6 +540,31 @@ class Pxls(object):
         except Exception as error:
             await self.bot.say("Error while removing template.")
             print(traceback.format_exception(type(error), error, error.__traceback__))
+
+    @commands.command(pass_context=True)
+    @commands.has_permissions(administrator=True)
+    async def status(self, ctx):
+        """
+        Shows status on templates
+        """
+        emb = discord.Embed()
+        try:
+            for template in self.templates[ctx.message.server.id]:
+                total = 0
+                done = 0
+                ox = template['ox']
+                oy = template['oy']
+                for xx in range(template['w']):
+                    for yy in range(template['h']):
+                        if template['data'][xx + yy * template['w']] != -1:
+                            total += 1
+                            if template['data'][xx + yy * template['w']] == self.boarddata[
+                                                xx + ox + (yy + oy) * self.width]:
+                                done += 1
+                emb.add_field(name=template['name'], value="{}% done".format(str(done / total * 100)[:5]))
+        except:
+            emb.add_field(name="Error!", value="No templates found")
+        await self.bot.send_message(ctx.message.channel, embed=emb)
 
 
 def setup(bot):
