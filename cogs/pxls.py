@@ -281,7 +281,7 @@ class Pxls(object):
                                     except discord.Forbidden:
                                         try:
                                             await self.bot.send_message(self.bot.get_channel(channel_id),
-                                                                    "Allow me to embed links")
+                                                                        "Allow me to embed links")
                                         except discord.Forbidden:
                                             pass
                 self.unprocessed_pixels.remove(pixel)
@@ -308,7 +308,6 @@ class Pxls(object):
             await self.bot.say("Restarting task_backup_maker")
         else:
             await self.bot.say("task_backup_maker is running")
-
 
     @commands.command(pass_context=True, hidden=True)
     async def makebackup(self, ctx):
@@ -450,10 +449,28 @@ class Pxls(object):
         Shows current settings
         """
         try:
-            await self.bot.say("silence time: {}\nthreshold: {}".format(self.silence[ctx.message.server.id],
+            await self.bot.say(
+                "silence time: {} minutes\nthreshold: {} pixels".format(self.silence[ctx.message.server.id] / 60,
                                                                         self.thresholds[ctx.message.server.id]))
         except:
             await self.bot.say("Server not set up correctly! Might be missing alert channels")
+        if ctx.message.server.id in self.alert_channels:
+            if self.alert_channels[ctx.message.server.id]:
+                await self.bot.say("Showing alerts in channel{}: {}".format(
+                    "" if len(self.alert_channels[ctx.message.server.id]) == 1 else "s", ", ".join(
+                        [self.bot.get_channel(i).mention for i in self.alert_channels[ctx.message.server.id]])))
+        if ctx.message.server.id in self.log_channels:
+            if self.log_channels[ctx.message.server.id]:
+                await self.bot.say("Showing logs in channel{}: {}".format(
+                    "" if len(self.log_channels[ctx.message.server.id]) == 1 else "s",
+                    ", ".join([self.bot.get_channel(i).mention for i in self.log_channels[ctx.message.server.id]])))
+        if ctx.message.server.id in self.mentions:
+            if self.mentions[ctx.message.server.id]:
+                ll = len(self.mentions[ctx.message.server.id])
+                roles = [i.name for i in ctx.message.server.roles if i.mention in self.mentions[ctx.message.server.id]]
+                await self.bot.say(
+                    "Mentioning {} role{}: {}".format("this" if ll == 1 else "these", "" if ll == 1 else "s",
+                                                      ", ".join([roles])))
 
     @commands.command(pass_context=True)
     @commands.has_permissions(administrator=True)
@@ -514,21 +531,6 @@ class Pxls(object):
                     file_out.write(str(image_data))
 
     @commands.command(pass_context=True)
-    async def listtemplates(self, ctx):
-        """
-        List all templates
-        """
-        try:
-            fmt = ", ".join([template['name'] for template in self.templates[ctx.message.server.id]])
-            if not fmt:
-                await self.bot.say("No templates were found!")
-            while fmt:
-                await self.bot.say(fmt[:1500])
-                fmt = fmt[1500:]
-        except:
-            await self.bot.say("No templates have been added")
-
-    @commands.command(pass_context=True)
     @commands.has_permissions(administrator=True)
     async def removetemplate(self, ctx, *, name: str):
         """
@@ -549,11 +551,33 @@ class Pxls(object):
             traceback.print_exception(type(error), error, error.__traceback__)
 
     @commands.command(pass_context=True)
+    @commands.has_permissions(administrator=True)
+    async def setuphelp(self, ctx):
+        """
+        Shows info on how to get the bot running
+        """
+        msg = """
+1. Get templates. Template images need to be 1:1 and less that 40k pixels (about 200x200)
+2. Upload the image. You can just use discord for that :D
+3. Go to https://pxls.space/ In there press ``T`` to open Templates. Then copy the link to the URL box.
+4. Move the template to desired location using ``ctrl + click&drag``. The template starts at ``0, 0``
+5. pxls.space has generated the correct link into address bar. Just copy it from there.
+6. Now use addtemplate. You need to name the template.
+7. Say startalerts in a channel you want to alert.
+8. Say startlogs in a channel you want to log pixels in.
+9. Add roles to mention with addmention.
+10. You are setup.
+
+If anything else is confusing you can always use the help command. Or try and find me in pxls discord
+"""
+
+    @commands.command(pass_context=True, aliases=['listtemplates'])
     async def status(self, ctx):
         """
         Shows status on templates
         """
         emb = discord.Embed()
+        count = 0
         try:
             for template in self.templates[ctx.message.server.id]:
                 total = 0
@@ -568,6 +592,13 @@ class Pxls(object):
                                                 xx + ox + (yy + oy) * self.width]:
                                 done += 1
                 emb.add_field(name=template['name'], value="{}% done".format(str(done / total * 100)[:5]))
+                count += 1
+                if count == 15:
+                    try:
+                        await self.bot.send_message(ctx.message.channel, embed=emb)
+                    except discord.Forbidden:
+                        await self.bot.say("Allow me to embed links")
+                        return
         except:
             emb.add_field(name="Error!", value="No templates found")
         try:
