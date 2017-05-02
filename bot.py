@@ -4,6 +4,7 @@ import json
 import os
 import traceback
 
+import discord
 from discord.ext import commands
 
 if not os.path.isfile("config.json"):
@@ -23,6 +24,11 @@ async def on_ready():
     print(bot.user.name)
     print(bot.user.id)
     print('------')
+    if config['status']:
+        game = discord.Game(name=config['status'])
+        await bot.change_presence(game=game)
+    else:
+        print("No status")
 
 
 @bot.event
