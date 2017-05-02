@@ -457,6 +457,8 @@ class Pxls(object):
             if im.size[0] * im.size[1] > 40000:
                 await self.bot.say("This imgae is too large! Please use images 200x200 in size or less.")
                 return
+            if im.mode != "RGBA":
+                im = im.convert("RGBA")
             info = dict()
             info["template"] = parameters["template"]
             info["ox"] = int(parameters["ox"])
@@ -471,9 +473,8 @@ class Pxls(object):
             traceback.print_exception(type(error), error, error.__traceback__)
             if im:
                 image_data = [i for i in im.getdata()]
-                with open("debug.txt","w") as file_out:
+                with open("debug.txt", "w") as file_out:
                     file_out.write(str(image_data))
-
 
     @commands.command(pass_context=True)
     async def listtemplates(self, ctx):
