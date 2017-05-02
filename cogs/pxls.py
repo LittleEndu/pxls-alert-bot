@@ -452,7 +452,7 @@ class Pxls(object):
                 if not parameters["tw"] == str(im.size[0]):
                     await self.bot.say("Can't use scaled images.")
                     return
-            if im.size[0]*im.size[1] > 40000:
+            if im.size[0] * im.size[1] > 40000:
                 await self.bot.say("This imgae is too large! Please use images 200x200 in size or less.")
                 return
             info = dict()
@@ -587,6 +587,21 @@ class Pxls(object):
             await self.bot.say("Didn't find anything to do.\n"
                                "Maybe everything is already done :thinking:\n"
                                "Or there's no such template :shrug:")
+
+    @commands.command(pass_context=True)
+    async def link(self, ctx, x: int, y: int, name=None):
+        """
+        Generates link with cordinates
+        """
+        msg = "Here you go.\n"
+        tt = ""
+        if name:
+            if ctx.message.server.id in self.templates:
+                for template in self.templates[ctx.message.server.id]:
+                    if template['name'] == name:
+                        tt = "&template={}&ox={}&oy={}".format(template['template'], template['ox'], template['oy'])
+        url = "https://pxls.space/#x={}&y={}{}".format(x, y, tt)
+        await self.bot.say(msg + url)
 
 
 def setup(bot):
