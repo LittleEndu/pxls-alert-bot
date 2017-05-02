@@ -470,7 +470,7 @@ class Pxls(object):
                 roles = [i.name for i in ctx.message.server.roles if i.mention in self.mentions[ctx.message.server.id]]
                 await self.bot.say(
                     "Mentioning {} role{}: {}".format("this" if ll == 1 else "these", "" if ll == 1 else "s",
-                                                      ", ".join([roles])))
+                                                      ", ".join(roles)))
 
     @commands.command(pass_context=True)
     @commands.has_permissions(administrator=True)
