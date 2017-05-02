@@ -468,6 +468,9 @@ class Pxls(object):
             if self.mentions[ctx.message.server.id]:
                 ll = len(self.mentions[ctx.message.server.id])
                 roles = [i.name for i in ctx.message.server.roles if i.mention in self.mentions[ctx.message.server.id]]
+                if "@everyone" in roles:
+                    roles.remove("@everyone")
+                    roles.append("everyone")
                 await self.bot.say(
                     "Mentioning {} role{}: {}".format("this" if ll == 1 else "these", "" if ll == 1 else "s",
                                                       ", ".join(roles)))
