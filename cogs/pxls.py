@@ -628,21 +628,20 @@ If anything else is confusing you can always use the help command. Or try and fi
                         await self.bot.send_message(ctx.message.channel, embed=emb)
                     except discord.Forbidden:
                         await self.bot.say("Allow me to embed links")
-                        return
-                stats = self.statistics.setdefault(ctx.message.server.id, [0, 0, 0, 0])
-                helpful = math.ceil(stats[1])
-                harmful = math.ceil(stats[0])
-                msg = "About {} helpful user{} {} active".format(helpful, "" if helpful == 1 else "s",
-                                                                 "is" if helpful == 1 else "are")
-                msg += "\nAbout {} harmful user{} {} active".format(harmful, "" if harmful == 1 else "s",
-                                                                    "is" if harmful == 1 else "are")
-                await self.bot.say(msg)
         except:
             emb.add_field(name="Error!", value="No templates found")
         try:
             await self.bot.send_message(ctx.message.channel, embed=emb)
         except discord.Forbidden:
             await self.bot.say("Allow me to embed links")
+        stats = self.statistics.setdefault(ctx.message.server.id, [0, 0, 0, 0])
+        helpful = math.ceil(stats[1])
+        harmful = math.ceil(stats[0])
+        msg = "About {} helpful user{} {} active".format(helpful, "" if helpful == 1 else "s",
+                                                         "is" if helpful == 1 else "are")
+        msg += "\nAbout {} harmful user{} {} active".format(harmful, "" if harmful == 1 else "s",
+                                                            "is" if harmful == 1 else "are")
+        await self.bot.say(msg)
 
     @commands.command(pass_context=True)
     async def directions(self, ctx, how_much=5, *, name=None):
