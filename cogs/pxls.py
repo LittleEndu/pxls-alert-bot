@@ -270,7 +270,7 @@ class Pxls(object):
                                         try:
                                             entry = self.log_entries_cache[entry_id]
                                             await self.bot.delete_message(
-                                                self.bot.get_message(self.bot.get_channel(entry[0]), entry[1]))
+                                                await self.bot.get_message(self.bot.get_channel(entry[0]), entry[1]))
                                         except:
                                             pass
                                         del self.log_entries_cache[entry_id]
