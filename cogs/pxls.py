@@ -33,7 +33,6 @@ class Pxls(object):
         self.color_tuples = list()
         self.boarddata = bytearray()
         self.unprocessed_pixels = list()
-        self.log_entries_cache = dict()
 
         if not os.path.isdir("backups"):
             os.makedirs("backups")
@@ -45,6 +44,7 @@ class Pxls(object):
         self.mentions = self.find_backup("mentions")
         self.silence = self.find_backup("silence")
         self.last_alert = self.find_backup("last-alert")
+        self.log_entries_cache = self.find_backup("log-entries")
 
         self.spectator = self.bot.loop.create_task(self.task_pxls_spectator())
         self.processor = self.bot.loop.create_task(self.task_pixels_processor())
@@ -114,6 +114,7 @@ class Pxls(object):
         self.backup_info(self.mentions, "mentions")
         self.backup_info(self.silence, "silence")
         self.backup_info(self.last_alert, "last-alert")
+        self.backup_info(self.log_entries_cache, "log-entries")
 
     def backup_info(self, info, name):
         if not os.path.isdir("backups"):
@@ -254,7 +255,7 @@ class Pxls(object):
                                     for channel_id in set(self.alert_channels[server_id]):
                                         try:
                                             await self.bot.send_message(self.bot.get_channel(channel_id), msg)
-                                        except discord.Forbidden:
+                                        except:
                                             pass
                         except:
                             pass
@@ -267,22 +268,25 @@ class Pxls(object):
                                     entry_id = "x".join([channel_id, str(pixel['x']), str(pixel['y'])])
                                     if entry_id in self.log_entries_cache:
                                         try:
-                                            await self.bot.delete_message(self.log_entries_cache[entry_id])
-                                        except discord.Forbidden:
+                                            entry = self.log_entries_cache[entry_id]
+                                            await self.bot.delete_message(
+                                                self.bot.get_message(self.bot.get_channel(entry[0]), entry[1]))
+                                        except:
                                             pass
                                         del self.log_entries_cache[entry_id]
                                     try:
                                         if is_harmful or is_questionable:
-                                            self.log_entries_cache[entry_id] = await self.bot.send_message(
+                                            msg = await self.bot.send_message(
                                                 self.bot.get_channel(channel_id), embed=embed)
+                                            self.log_entries_cache[entry_id] = (channel_id, msg.id)
                                         else:
                                             await self.bot.send_message(self.bot.get_channel(channel_id),
                                                                         embed=embed)
-                                    except discord.Forbidden:
+                                    except:
                                         try:
                                             await self.bot.send_message(self.bot.get_channel(channel_id),
                                                                         "Allow me to embed links")
-                                        except discord.Forbidden:
+                                        except:
                                             pass
                 self.unprocessed_pixels.remove(pixel)
 
@@ -514,6 +518,10 @@ class Pxls(object):
             if im.size[0] * im.size[1] > 40000:
                 await self.bot.say("This imgae is too large! Please use images 200x200 in size or less.")
                 return
+            if int(parameters["ox"]) < 0 or int(parameters["ox"]) + im.size[0] > self.width or int(
+                    parameters["oy"]) < 0 or int(parameters["oy"]) + im.size[1] > self.height:
+                await self.bot.say("This imgae is outside the canvas!")
+                return
             if im.mode != "RGBA":
                 im = im.convert("RGBA")
             info = dict()
@@ -561,7 +569,7 @@ class Pxls(object):
         """
         msg = """
 1. Get templates. Template images need to be 1:1 and less that 40k pixels (about 200x200)
-2. Upload the image. You can just use discord for that :D
+2. Upload the image. You can just use discord for that :smile:
 3. Go to https://pxls.space/ In there press ``T`` to open Templates. Then copy the link to the URL box.
 4. Move the template to desired location using ``ctrl + click&drag``. The template starts at ``0, 0``
 5. pxls.space has generated the correct link into address bar. Just copy it from there.
