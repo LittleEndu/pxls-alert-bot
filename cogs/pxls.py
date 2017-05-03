@@ -520,7 +520,7 @@ class Pxls(object):
             await self.bot.say("You don't seem to have any alert channels")
             return
         try:
-            for channel in self.alert_channels[ctx.message.server.id]:
+            for channel in set(self.alert_channels[ctx.message.server.id]):
                 msg = "\nTEST ALERT"
                 if ctx.message.server.id in self.mentions:
                     msg = "".join([str(i) for i in self.mentions[ctx.message.server.id]]) + msg
