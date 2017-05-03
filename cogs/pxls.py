@@ -251,6 +251,9 @@ class Pxls(object):
                             self.statistics[server_id] = stats
                         if is_questionable:
                             self.scores[server_id] = self.scores.setdefault(server_id, 0) * 0.8
+                            stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
+                            stats[2] += 0.5
+                            self.statistics[server_id] = stats
                         try:
                             if self.last_alert[server_id] < time.time() - self.silence[server_id]:
                                 if self.scores[server_id] <= self.thresholds[server_id] * -1:
@@ -472,10 +475,11 @@ class Pxls(object):
         """
         try:
             await self.bot.say(
-                "silence time: {} minutes\nthreshold: {} pixels".format(self.silence[ctx.message.server.id] / 60,
-                                                                        self.thresholds[ctx.message.server.id]))
+                "silence time: {} minutes\nthreshold: {} pixels".format(
+                    self.silence.setdefault(ctx.message.server.id, 300) / 60,
+                    self.thresholds.setdefault(ctx.message.server.id, 5)))
         except:
-            await self.bot.say("Server not set up correctly! Might be missing alert channels")
+            pass
         if ctx.message.server.id in self.alert_channels:
             if self.alert_channels[ctx.message.server.id]:
                 await self.bot.say("Showing alerts in channel{}: {}".format(
@@ -637,10 +641,10 @@ If anything else is confusing you can always use the help command. Or try and fi
         stats = self.statistics.setdefault(ctx.message.server.id, [0, 0, 0, 0])
         helpful = math.ceil(stats[1])
         harmful = math.ceil(stats[0])
-        msg = ":thumbsup: About {} helpful user{} {} active".format(helpful, "" if helpful == 1 else "s",
-                                                                    "is" if helpful == 1 else "are")
-        msg += "\n:thumbsdown: About {} harmful user{} {} active".format(harmful, "" if harmful == 1 else "s",
-                                                                         "is" if harmful == 1 else "are")
+        msg = "About {} helpful user{} {} active".format(helpful, "" if helpful == 1 else "s",
+                                                         "is" if helpful == 1 else "are")
+        msg += "\nAbout {} harmful user{} {} active".format(harmful, "" if harmful == 1 else "s",
+                                                            "is" if harmful == 1 else "are")
         await self.bot.say(msg)
 
     @commands.command(pass_context=True)
