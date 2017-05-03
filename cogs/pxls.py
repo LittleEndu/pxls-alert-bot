@@ -40,13 +40,11 @@ class Pxls(object):
         self.templates = self.find_backup("templates")
         self.log_channels = self.find_backup("log-channels")
         self.alert_channels = self.find_backup("alert-channels")
-        self.thresholds = self.find_backup("thresholds")
-        self.scores = self.find_backup("scores")
+        self.numbers = self.find_backup("numbers")
         self.mentions = self.find_backup("mentions")
-        self.silence = self.find_backup("silence")
-        self.last_alert = self.find_backup("last-alert")
         self.log_entries_cache = self.find_backup("log-entries")
         self.statistics = self.find_backup("statistics")
+        # statistics are server_id:(harmful users, helpful users, harmful pixels, helpful pixels)
 
         self.spectator = self.bot.loop.create_task(self.task_pxls_spectator())
         self.processor = self.bot.loop.create_task(self.task_5seconds())
@@ -111,14 +109,19 @@ class Pxls(object):
         self.backup_info(self.templates, "templates")
         self.backup_info(self.log_channels, "log-channels")
         self.backup_info(self.alert_channels, "alert-channels")
-        self.backup_info(self.thresholds, "thresholds")
-        self.backup_info(self.scores, "scores")
         self.backup_info(self.mentions, "mentions")
-        self.backup_info(self.silence, "silence")
-        self.backup_info(self.last_alert, "last-alert")
         self.backup_info(self.log_entries_cache, "log-entries")
+        self.backup_info(self.numbers, "numbers")
 
     def backup_info(self, info, name):
+        if name != "log-entries":
+            servers = [i.id for i in self.bot.servers]
+            for server_id in info:
+                if server_id not in servers:
+                    try:
+                        del info[server_id]
+                    except:
+                        pass
         if not os.path.isdir("backups"):
             os.makedirs("backups")
         date = str(datetime.datetime.now())
@@ -240,25 +243,27 @@ class Pxls(object):
                                                 except:
                                                     continue
                         if is_harmful:
-                            self.scores[server_id] = self.scores.setdefault(server_id, 0) - 1
+                            self.numbers[server_id]['score'] = self.numbers[server_id].setdefault('score', 0) - 1
                             stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
                             stats[2] += 1
                             self.statistics[server_id] = stats
                         if is_helpful:
-                            self.scores[server_id] = self.scores.setdefault(server_id, 0) * 0.5 + 1
+                            self.numbers[server_id]['score'] = self.numbers[server_id].setdefault('score', 0) * 0.5 + 1
                             stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
                             stats[3] += 1
                             self.statistics[server_id] = stats
                         if is_questionable:
-                            self.scores[server_id] = self.scores.setdefault(server_id, 0) * 0.8
+                            self.numbers[server_id]['score'] = self.numbers[server_id].setdefault('score', 0) * 0.8
                             stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
                             stats[2] += 0.5
                             self.statistics[server_id] = stats
                         try:
-                            if self.last_alert[server_id] < time.time() - self.silence[server_id]:
-                                if self.scores[server_id] <= self.thresholds[server_id] * -1:
-                                    self.last_alert[server_id] = time.time()
-                                    self.scores[server_id] += 10
+                            if self.numbers[server_id]['last_alert'] < time.time() - self.numbers[server_id]['silence']:
+                                harms = self.statistics[server_id][0] - self.statistics[server_id][1]
+                                if any([self.numbers[server_id]['score'] <= self.numbers[server_id]['threshold'] * -1,
+                                        harms > self.numbers[server_id]['threshold']]):
+                                    self.numbers[server_id]['last_alert'] = time.time()
+                                    self.numbers[server_id]['score'] += 5 + self.numbers[server_id]['threshold']
                                     msg = "\nDamage done is over threshold value" \
                                           "\nUse ``{}directions`` for directions".format(self.config['prefix'])
                                     if server_id in self.mentions:
@@ -385,9 +390,9 @@ class Pxls(object):
         The threshold is controller with setthreshold
         """
         self.alert_channels.setdefault(ctx.message.server.id, []).append(ctx.message.channel.id)
-        self.thresholds.setdefault(ctx.message.server.id, 5)
-        self.silence.setdefault(ctx.message.server.id, 5 * 60)
-        self.last_alert.setdefault(ctx.message.server.id, 0)
+        self.numbers[ctx.message.server.id].setdefault('thresholds', 5)
+        self.numbers[ctx.message.server.id].setdefault('silence', 15 * 60)
+        self.numbers[ctx.message.server.id].setdefault('last_alert', 0)
         await self.bot.say("Will alert this channel")
 
     @commands.command(pass_context=True)
@@ -446,7 +451,7 @@ class Pxls(object):
             if value < 0:
                 await self.bot.say("Threshold must be positive")
                 return
-            self.thresholds[ctx.message.server.id] = value
+            self.numbers[ctx.message.server.id]["threshold"] = value
             await self.bot.say("Successfully set the threshold")
         except Exception as error:
             await self.bot.say("Error while setting threshold value.")
@@ -462,7 +467,7 @@ class Pxls(object):
             if minutes < 0:
                 await self.bot.say("Minutes must be positive")
                 return
-            self.silence[ctx.message.server.id] = minutes * 60
+            self.numbers[ctx.message.server.id]['silence'] = minutes * 60
             await self.bot.say("Successfully set the silence")
         except Exception as error:
             await self.bot.say("Error while setting silence.")
@@ -476,8 +481,8 @@ class Pxls(object):
         try:
             await self.bot.say(
                 "silence time: {} minutes\nthreshold: {} pixels".format(
-                    self.silence.setdefault(ctx.message.server.id, 300) / 60,
-                    self.thresholds.setdefault(ctx.message.server.id, 5)))
+                    self.numbers[ctx.message.server.id].setdefault('silence', 900) / 60,
+                    self.numbers[ctx.message.server.id].setdefault('threshold', 5)))
         except:
             pass
         if ctx.message.server.id in self.alert_channels:
@@ -507,6 +512,9 @@ class Pxls(object):
         """
         Does a test alert.
         """
+        if not ctx.message.server.id in self.alert_channels:
+            await self.bot.say("You don't seem to have any alert channels")
+            return
         try:
             for channel in self.alert_channels[ctx.message.server.id]:
                 msg = "\nTEST ALERT"
@@ -604,6 +612,7 @@ class Pxls(object):
 If anything else is confusing you can always use the help command. Or try and find me in pxls discord
 """
         await self.bot.say(msg)
+
 
     @commands.command(pass_context=True, aliases=['listtemplates', 'statistics', 'stats', 'templates'])
     async def status(self, ctx):

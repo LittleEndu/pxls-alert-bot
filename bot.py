@@ -143,6 +143,24 @@ async def debug(ctx, *, command: str):
     else:
         await bot.say(":x: Only the bot owner can run debug commands")
 
+@bot.command(pass_context=True, hidden=True)
+async def announce(ctx, *, announcement: str):
+    """
+    Announce stuff
+    """
+    announcement = "(Sorry if this isn't the right channel for these) Announcement from bot maker:\n\n" + announcement
+    if ctx.message.author.id == config["owner_id"]:
+        for server in bot.servers:
+            for channel in server.channels:
+                if channel.type == discord.ChannelType.text:
+                    try:
+                        await bot.send_message(destination=channel,content=announcement)
+                        break
+                    except:
+                        pass
+    else:
+        await bot.say("Only the bot owner can announce stuff")
+
 if __name__ == '__main__':
     if config["token"]:
         for extension in config['auto_load']:
