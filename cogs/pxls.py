@@ -50,6 +50,9 @@ class Pxls(object):
         self.processor = self.bot.loop.create_task(self.task_5seconds())
         self.backer = self.bot.loop.create_task(self.task_backup_maker())
 
+        for server in self.bot.servers:
+            self.numbers.setdefault(server.id, dict())
+
     def find_backup(self, name):
         for file in os.listdir("backups"):
             if file.startswith(name):
@@ -390,6 +393,7 @@ class Pxls(object):
         The threshold is controller with setthreshold
         """
         self.alert_channels.setdefault(ctx.message.server.id, []).append(ctx.message.channel.id)
+        self.numbers.setdefault(ctx.message.server.id, dict())
         self.numbers[ctx.message.server.id].setdefault('thresholds', 5)
         self.numbers[ctx.message.server.id].setdefault('silence', 15 * 60)
         self.numbers[ctx.message.server.id].setdefault('last_alert', 0)

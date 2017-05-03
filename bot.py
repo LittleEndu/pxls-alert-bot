@@ -1,4 +1,3 @@
-import asyncio
 import inspect
 import json
 import os
@@ -77,6 +76,7 @@ async def reload(ctx):
     else:
         await bot.say(":x: Only the bot owner can reload extensions")
 
+
 @bot.command(pass_context=True)
 async def bug(ctx):
     """
@@ -84,8 +84,8 @@ async def bug(ctx):
     """
     try:
         em = discord.Embed()
-        em.add_field(name="You can report bugs here.",value="https://github.com/LittleEndu/pxls-alert-bot/issues")
-        await bot.send_message(ctx.message.channel,embed=em)
+        em.add_field(name="You can report bugs here.", value="https://github.com/LittleEndu/pxls-alert-bot/issues")
+        await bot.send_message(ctx.message.channel, embed=em)
     except discord.Forbidden:
         await bot.say("You can report bugs here.\nhttps://github.com/LittleEndu/pxls-alert-bot/issues")
 
@@ -123,6 +123,7 @@ async def unload(ctx, *, extension: str):
     else:
         await bot.say(":x: Only the bot owner can unload extensions")
 
+
 @bot.command(pass_context=True, hidden=True)
 async def debug(ctx, *, command: str):
     """
@@ -143,6 +144,7 @@ async def debug(ctx, *, command: str):
     else:
         await bot.say(":x: Only the bot owner can run debug commands")
 
+
 @bot.command(pass_context=True, hidden=True)
 async def announce(ctx, *, announcement: str):
     """
@@ -159,12 +161,13 @@ async def announce(ctx, *, announcement: str):
             for channel in server.channels:
                 if channel.type == discord.ChannelType.text:
                     try:
-                        await bot.send_message(destination=channel,content=announcement)
+                        await bot.send_message(destination=channel, content=announcement)
                         break
                     except:
                         pass
     else:
         await bot.say("Only the bot owner can announce stuff")
+
 
 if __name__ == '__main__':
     if config["token"]:
