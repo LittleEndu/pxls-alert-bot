@@ -105,12 +105,12 @@ class Pxls(object):
 
     async def task_backup_maker(self):
         while True:
-            self.cleanup()
             await asyncio.sleep(3600)
             self.make_backup()
             await self.initpxls()
 
     def make_backup(self):
+        self.cleanup()
         self.backup_info(self.templates, "templates")
         self.backup_info(self.log_channels, "log-channels")
         self.backup_info(self.alert_channels, "alert-channels")
@@ -125,6 +125,8 @@ class Pxls(object):
             self.log_channels[server_id] = list(set(self.log_channels[server_id]))
         for server_id in self.alert_channels:
             self.alert_channels[server_id] = list(set(self.alert_channels[server_id]))
+        for server_id in self.mentions:
+            self.mentions[server_id] = list(set(self.mentions[server_id]))
         for entry in list(self.log_entries_cache.keys()):
             channel_id = entry.split("x")[0]
             channels = list()
@@ -292,7 +294,7 @@ class Pxls(object):
                                     msg = "\nDamage done is over threshold value" \
                                           "\nUse ``{}directions`` for directions".format(self.config['prefix'])
                                     if server_id in self.mentions:
-                                        msg = "".join([str(i) for i in self.mentions[server_id]]) + msg
+                                        msg = "".join([str(i) for i in set(self.mentions[server_id])]) + msg
                                         if [i for i in self.bot.get_server(server_id).roles if
                                             i.name == "@everyone"][
                                             0].mention in self.mentions[server_id]:
@@ -515,12 +517,12 @@ class Pxls(object):
             if self.alert_channels[ctx.message.server.id]:
                 await self.bot.say("Showing alerts in channel{}: {}".format(
                     "" if len(self.alert_channels[ctx.message.server.id]) == 1 else "s", ", ".join(
-                        [self.bot.get_channel(i).mention for i in self.alert_channels[ctx.message.server.id]])))
+                        [self.bot.get_channel(i).mention for i in set(self.alert_channels[ctx.message.server.id])])))
         if ctx.message.server.id in self.log_channels:
             if self.log_channels[ctx.message.server.id]:
                 await self.bot.say("Showing logs in channel{}: {}".format(
                     "" if len(self.log_channels[ctx.message.server.id]) == 1 else "s",
-                    ", ".join([self.bot.get_channel(i).mention for i in self.log_channels[ctx.message.server.id]])))
+                    ", ".join([self.bot.get_channel(i).mention for i in set(self.log_channels[ctx.message.server.id])])))
         if ctx.message.server.id in self.mentions:
             if self.mentions[ctx.message.server.id]:
                 ll = len(self.mentions[ctx.message.server.id])
