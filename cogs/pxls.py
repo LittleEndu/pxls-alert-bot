@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import json
+import math
 import os
 import random
 import struct
@@ -45,9 +46,10 @@ class Pxls(object):
         self.silence = self.find_backup("silence")
         self.last_alert = self.find_backup("last-alert")
         self.log_entries_cache = self.find_backup("log-entries")
+        self.statistics = self.find_backup("statistics")
 
         self.spectator = self.bot.loop.create_task(self.task_pxls_spectator())
-        self.processor = self.bot.loop.create_task(self.task_pixels_processor())
+        self.processor = self.bot.loop.create_task(self.task_5seconds())
         self.backer = self.bot.loop.create_task(self.task_backup_maker())
 
     def find_backup(self, name):
@@ -185,9 +187,19 @@ class Pxls(object):
             except websockets.ConnectionClosed:
                 await asyncio.sleep(60)
 
-    async def task_pixels_processor(self):
+    async def task_5seconds(self):
         while True:
             await asyncio.sleep(5)
+            for server_id in self.statistics:
+                stats = self.statistics[server_id]
+                stats = [stats[0] - 0.05, stats[1] - 0.05, stats[2], stats[3]]
+                if stats[0] <= stats[2]:
+                    stats[0] += 1
+                    stats[2] = 0
+                if stats[1] <= stats[3]:
+                    stats[1] += 1
+                    stats[3] = 0
+                self.statistics[server_id] = stats
             for pixel in self.unprocessed_pixels[:]:
                 for server_id in set(self.log_channels.keys()).union(set(self.alert_channels.keys())):
                     if server_id in self.templates:
@@ -229,8 +241,14 @@ class Pxls(object):
                                                     continue
                         if is_harmful:
                             self.scores[server_id] = self.scores.setdefault(server_id, 0) - 1
+                            stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
+                            stats[2] += 1
+                            self.statistics[server_id] = stats
                         if is_helpful:
                             self.scores[server_id] = self.scores.setdefault(server_id, 0) * 0.5 + 1
+                            stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
+                            stats[3] += 1
+                            self.statistics[server_id] = stats
                         if is_questionable:
                             self.scores[server_id] = self.scores.setdefault(server_id, 0) * 0.8
                         try:
@@ -301,10 +319,10 @@ class Pxls(object):
             self.spectator = self.bot.loop.create_task(self.task_pxls_spectator())
             await self.bot.say("Restarting task_pxls_spectator")
         else:
-            await self.bot.say("task_pxls_spectator is running")
+            await self.bot.say("task_5seconds is running")
         if self.processor.done():
-            self.processor = self.bot.loop.create_task(self.task_pixels_processor())
-            await self.bot.say("Restarting task_pixels_processor")
+            self.processor = self.bot.loop.create_task(self.task_5seconds())
+            await self.bot.say("Restarting task_5seconds")
         else:
             await self.bot.say("task_pixels_processor is running")
         if self.backer.done():
@@ -583,7 +601,7 @@ If anything else is confusing you can always use the help command. Or try and fi
 """
         await self.bot.say(msg)
 
-    @commands.command(pass_context=True, aliases=['listtemplates'])
+    @commands.command(pass_context=True, aliases=['listtemplates', 'statistics', 'stats', 'templates'])
     async def status(self, ctx):
         """
         Shows status on templates
@@ -611,6 +629,14 @@ If anything else is confusing you can always use the help command. Or try and fi
                     except discord.Forbidden:
                         await self.bot.say("Allow me to embed links")
                         return
+                stats = self.statistics.setdefault(ctx.message.server.id, [0, 0, 0, 0])
+                helpful = math.ceil(stats[1])
+                harmful = math.ceil(stats[0])
+                msg = "About {} helpful user{} {} active".format(helpful, "" if helpful == 1 else "s",
+                                                                 "is" if helpful == 1 else "are")
+                msg += "\nAbout {} harmful user{} {} active".format(harmful, "" if harmful == 1 else "s",
+                                                                    "is" if harmful == 1 else "are")
+                await self.bot.say(msg)
         except:
             emb.add_field(name="Error!", value="No templates found")
         try:
