@@ -105,6 +105,7 @@ class Pxls(object):
 
     async def task_backup_maker(self):
         while True:
+            self.cleanup()
             await asyncio.sleep(3600)
             self.make_backup()
             await self.initpxls()
@@ -120,12 +121,26 @@ class Pxls(object):
     def cleanup(self):
         for server in self.bot.servers:
             self.numbers.setdefault(server.id, dict())
-
+        for server_id in self.log_channels:
+            self.log_channels[server_id] = list(set(self.log_channels[server_id]))
+        for server_id in self.alert_channels:
+            self.alert_channels[server_id] = list(set(self.alert_channels[server_id]))
+        for entry in list(self.log_entries_cache.keys()):
+            channel_id = entry.split("x")[0]
+            channels = list()
+            for server_id in self.log_channels:
+                for channel_id in self.log_channels[server_id]:
+                    channels.append(channel_id)
+            if channel_id not in channels:
+                try:
+                    del self.log_entries_cache[entry]
+                except:
+                    pass
 
     def backup_info(self, info, name):
         if name != "log-entries":
             servers = [i.id for i in self.bot.servers]
-            for server_id in info:
+            for server_id in list(info.keys()):
                 if server_id not in servers:
                     try:
                         del info[server_id]
@@ -337,12 +352,12 @@ class Pxls(object):
             self.spectator = self.bot.loop.create_task(self.task_pxls_spectator())
             await self.bot.say("Restarting task_pxls_spectator")
         else:
-            await self.bot.say("task_5seconds is running")
+            await self.bot.say("task_pxls_spectator is running")
         if self.processor.done():
             self.processor = self.bot.loop.create_task(self.task_5seconds())
             await self.bot.say("Restarting task_5seconds")
         else:
-            await self.bot.say("task_pixels_processor is running")
+            await self.bot.say("task_5seconds is running")
         if self.backer.done():
             self.backer = self.bot.loop.create_task(self.task_backup_maker())
             await self.bot.say("Restarting task_backup_maker")
