@@ -53,6 +53,7 @@ class Pxls(object):
         for server in self.bot.servers:
             self.numbers.setdefault(server.id, dict())
 
+
     def find_backup(self, name):
         for file in os.listdir("backups"):
             if file.startswith(name):
@@ -115,6 +116,11 @@ class Pxls(object):
         self.backup_info(self.mentions, "mentions")
         self.backup_info(self.log_entries_cache, "log-entries")
         self.backup_info(self.numbers, "numbers")
+
+    def cleanup(self):
+        for server in self.bot.servers:
+            self.numbers.setdefault(server.id, dict())
+
 
     def backup_info(self, info, name):
         if name != "log-entries":
@@ -245,6 +251,7 @@ class Pxls(object):
                                                         break
                                                 except:
                                                     continue
+                        self.numbers.setdefault(server_id, dict())
                         if is_harmful:
                             self.numbers[server_id]['score'] = self.numbers[server_id].setdefault('score', 0) - 1
                             stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
@@ -455,7 +462,7 @@ class Pxls(object):
             if value < 0:
                 await self.bot.say("Threshold must be positive")
                 return
-            self.numbers[ctx.message.server.id]["threshold"] = value
+            self.numbers.setdefault(ctx.message.server.id, dict())["threshold"] = value
             await self.bot.say("Successfully set the threshold")
         except Exception as error:
             await self.bot.say("Error while setting threshold value.")
@@ -471,7 +478,7 @@ class Pxls(object):
             if minutes < 0:
                 await self.bot.say("Minutes must be positive")
                 return
-            self.numbers[ctx.message.server.id]['silence'] = minutes * 60
+            self.numbers.setdefault(ctx.message.server.id, dict())['silence'] = minutes * 60
             await self.bot.say("Successfully set the silence")
         except Exception as error:
             await self.bot.say("Error while setting silence.")
@@ -485,8 +492,8 @@ class Pxls(object):
         try:
             await self.bot.say(
                 "silence time: {} minutes\nthreshold: {} pixels".format(
-                    self.numbers[ctx.message.server.id].setdefault('silence', 900) / 60,
-                    self.numbers[ctx.message.server.id].setdefault('threshold', 5)))
+                    self.numbers.setdefault(ctx.message.server.id, dict()).setdefault('silence', 900) / 60,
+                    self.numbers.setdefault(ctx.message.server.id, dict()).setdefault('threshold', 5)))
         except:
             pass
         if ctx.message.server.id in self.alert_channels:
