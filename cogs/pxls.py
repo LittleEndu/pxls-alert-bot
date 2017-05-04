@@ -233,7 +233,8 @@ class Pxls(object):
                 self.statistics[server_id] = stats
             for server_id in self.templates:
                 for template in self.templates[server_id]:
-                    template['score'] = template.setdefault('score', 0) * 0.99
+                    if template.setdefault('score', 0) > -0.5:
+                        template['score'] *= 0.99
             for pixel in self.unprocessed_pixels[:]:
                 for server_id in set(self.log_channels.keys()).union(set(self.alert_channels.keys())):
                     if server_id in self.templates:
