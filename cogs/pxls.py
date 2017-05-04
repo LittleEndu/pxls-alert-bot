@@ -195,7 +195,8 @@ class Pxls(object):
             name += ". Is {} but should be {}!".format(self.get_color_name(self.color_tuples[pixel['color']]),
                                                        self.get_color_name(self.color_tuples[should_be[0]]))
         template = on_templates[0]
-        value = "[Link with cords]({}/#template={}&ox={}&oy={}&x={}&y={}&scale=50&oo=0.5)".format(
+        value = "[Link with cords to {}]({}/#template={}&ox={}&oy={}&x={}&y={}&scale=50&oo=0.5)".format(
+            template['name'],
             self.config['pxls_default'],
             template["template"],
             template['ox'],
