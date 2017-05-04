@@ -53,7 +53,6 @@ class Pxls(object):
         for server in self.bot.servers:
             self.numbers.setdefault(server.id, dict())
 
-
     def find_backup(self, name):
         for file in os.listdir("backups"):
             if file.startswith(name):
@@ -95,12 +94,14 @@ class Pxls(object):
 
     async def initpxls(self):
         async with aiohttp.ClientSession() as session:
-            async with session.get("https://pxls.space/info", headers={'Cookie': 'pxls-agegate=1'}) as response:
+            async with session.get("{}/info".format(self.config['pxls_default']),
+                                   headers={'Cookie': 'pxls-agegate=1'}) as response:
                 info = literal_eval(str(await response.read())[2:-1])
                 self.width = info["width"]
                 self.height = info["height"]
                 self.color_tuples = [struct.unpack('BBBB', bytes.fromhex(i[1:] + "FF")) for i in info["palette"]]
-            async with session.get("https://pxls.space/boarddata", headers={'Cookie': 'pxls-agegate=1'}) as response:
+            async with session.get("{}/boarddata".format(self.config['pxls_default']),
+                                   headers={'Cookie': 'pxls-agegate=1'}) as response:
                 self.boarddata = bytearray(await response.read())
 
     async def task_backup_maker(self):
@@ -194,7 +195,8 @@ class Pxls(object):
             name += ". Is {} but should be {}!".format(self.get_color_name(self.color_tuples[pixel['color']]),
                                                        self.get_color_name(self.color_tuples[should_be[0]]))
         template = on_templates[0]
-        value = "[Link with cords](https://pxls.space/#template={}&ox={}&oy={}&x={}&y={}&scale=50&oo=0.5)".format(
+        value = "[Link with cords]({}/#template={}&ox={}&oy={}&x={}&y={}&scale=50&oo=0.5)".format(
+            self.config['pxls_default'],
             template["template"],
             template['ox'],
             template['oy'],
@@ -205,7 +207,7 @@ class Pxls(object):
     async def task_pxls_spectator(self):
         while True:
             try:
-                async with websockets.connect("ws://pxls.space/ws", extra_headers={"Cookie": "pxls-agegate=1"}) as ws:
+                async with websockets.connect(self.config['pxls_ws'], extra_headers={"Cookie": "pxls-agegate=1"}) as ws:
                     await self.initpxls()
                     while True:
                         info = literal_eval(await ws.recv())
@@ -213,7 +215,7 @@ class Pxls(object):
                             for px in info["pixels"]:
                                 self.boarddata[px['x'] + px['y'] * self.width] = px['color']
                                 self.unprocessed_pixels.append({"x": px['x'], "y": px['y'], "color": px['color']})
-            except websockets.ConnectionClosed:
+            except:
                 await asyncio.sleep(60)
 
     async def task_5seconds(self):
@@ -522,7 +524,8 @@ class Pxls(object):
             if self.log_channels[ctx.message.server.id]:
                 await self.bot.say("Showing logs in channel{}: {}".format(
                     "" if len(self.log_channels[ctx.message.server.id]) == 1 else "s",
-                    ", ".join([self.bot.get_channel(i).mention for i in set(self.log_channels[ctx.message.server.id])])))
+                    ", ".join(
+                        [self.bot.get_channel(i).mention for i in set(self.log_channels[ctx.message.server.id])])))
         if ctx.message.server.id in self.mentions:
             if self.mentions[ctx.message.server.id]:
                 ll = len(self.mentions[ctx.message.server.id])
@@ -564,6 +567,8 @@ class Pxls(object):
         """
         await self.bot.send_typing(ctx.message.channel)
         im = None
+        if "#" not in url:
+            await self.bot.say("You need the url that has # in it")
         try:
             parameters = {i.split("=")[0]: i.split("=")[1] for i in url[url.find("#") + 1:].split("&")}
             async with aiohttp.ClientSession() as session:
@@ -641,7 +646,6 @@ If anything else is confusing you can always use the help command. Or try and fi
 """
         await self.bot.say(msg)
 
-
     @commands.command(pass_context=True, aliases=['listtemplates', 'statistics', 'stats', 'templates'])
     async def status(self, ctx):
         """
@@ -716,8 +720,8 @@ If anything else is confusing you can always use the help command. Or try and fi
                         yy += 1
                     continue
                 if not self.boarddata[xx + yy * self.width] == pixel:
-                    url = "https://pxls.space/#template={}&ox={}&oy={}&x={}&y={}&scale=50&oo=0.5".format(
-                        template["template"], template['ox'], template['oy'], xx, yy)
+                    url = "{}/#template={}&ox={}&oy={}&x={}&y={}&scale=50&oo=0.5".format(
+                        self.config['pxls_default'], template["template"], template['ox'], template['oy'], xx, yy)
                     directions.append(["Pixel at x={}, y={} should be {}".format(xx, yy, self.get_color_name(
                         self.color_tuples[pixel])), "[Link to {}]({})".format(template['name'], url)])
                     total += 1
@@ -762,7 +766,7 @@ If anything else is confusing you can always use the help command. Or try and fi
                 for template in self.templates[ctx.message.server.id]:
                     if template['name'] == name:
                         tt = "&template={}&ox={}&oy={}".format(template['template'], template['ox'], template['oy'])
-        url = "https://pxls.space/#x={}&y={}{}".format(x, y, tt)
+        url = "{}/#x={}&y={}{}".format(self.config['pxls_default'], x, y, tt)
         await self.bot.say(msg + url)
 
 

@@ -5,5 +5,7 @@
   ],
   "prefix": "px!",
   "owner_id": "",
-  "status": ""
+  "status": "",
+  "pxls_ws": "wss://pxls.space/ws",
+  "pxls_default": "https://pxls.space"
 }
