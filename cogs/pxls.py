@@ -677,7 +677,7 @@ If anything else is confusing you can always use the help command. Or try and fi
                 icon = "\u23f9"
                 if template['score'] > 0.5:
                     icon = "\u23eb"
-                if template['score'] < 0.5:
+                if template['score'] < -0.5:
                     icon = "\u23ec"
                 emb.add_field(name=template['name'], value="{}% done {}".format(str(done / total * 100)[:5], icon))
                 count += 1
