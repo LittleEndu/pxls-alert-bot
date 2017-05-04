@@ -231,6 +231,9 @@ class Pxls(object):
                     stats[1] += 1
                     stats[3] = 0
                 self.statistics[server_id] = stats
+            for server_id in self.templates:
+                for template in self.templates[server_id]:
+                    template['score'] = template.setdefault('score', 0) * 0.99
             for pixel in self.unprocessed_pixels[:]:
                 for server_id in set(self.log_channels.keys()).union(set(self.alert_channels.keys())):
                     if server_id in self.templates:
@@ -240,6 +243,7 @@ class Pxls(object):
                         on_templates = list()
                         should_be = list()
                         for template in self.templates[server_id]:
+                            assert isinstance(template, dict)
                             assert isinstance(pixel, dict)
                             xx = pixel["x"] - template["ox"]
                             yy = pixel["y"] - template["oy"]
@@ -253,12 +257,14 @@ class Pxls(object):
                                 # if the colors match
                                 if pixel["color"] == template["data"][xx + yy * template["w"]]:
                                     is_helpful = True
+                                    template['score'] = template.setdefault('score', 0) + 1
                                 else:
                                     keep_going = True
                                     for ix in range(-1, 3, 1):
                                         if keep_going:
                                             if ix == 2:
                                                 is_harmful = True
+                                                template['score'] = template.setdefault('score', 0) - 1
                                                 break
                                             for iy in range(-1, 2, 1):
                                                 try:
@@ -266,6 +272,7 @@ class Pxls(object):
                                                     if pixel["color"] == template["data"][
                                                                         xx + ix + (yy + iy) * template["w"]]:
                                                         is_questionable = True
+                                                        template['score'] = template.setdefault('score', 0) * 0.95
                                                         keep_going = False
                                                         break
                                                 except:
@@ -594,6 +601,7 @@ class Pxls(object):
             info["data"] = [self.get_nearest_pixel_index(i, self.color_tuples) for i in im.getdata()]
             info["w"], info["h"] = im.size
             info["name"] = name
+            info["score"] = 0
             self.templates.setdefault(ctx.message.server.id, []).append(info)
             await self.bot.say("Successfully added the template.")
         except Exception as error:
@@ -666,7 +674,12 @@ If anything else is confusing you can always use the help command. Or try and fi
                             if template['data'][xx + yy * template['w']] == self.boarddata[
                                                 xx + ox + (yy + oy) * self.width]:
                                 done += 1
-                emb.add_field(name=template['name'], value="{}% done".format(str(done / total * 100)[:5]))
+                icon = "\u23f9"
+                if template['score'] > 0.5:
+                    icon = "\u23eb"
+                if template['score'] < 0.5:
+                    icon = "\u23ec"
+                emb.add_field(name=template['name'], value="{}% done {}".format(str(done / total * 100)[:5], icon))
                 count += 1
                 if count == 15:
                     try:
