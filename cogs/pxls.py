@@ -272,7 +272,7 @@ class Pxls(object):
                                                     if pixel["color"] == template["data"][
                                                                         xx + ix + (yy + iy) * template["w"]]:
                                                         is_questionable = True
-                                                        template['score'] = template.setdefault('score', 0) * 0.95
+                                                        template['score'] = template.setdefault('score', 0) * 0.5 - 0.5
                                                         keep_going = False
                                                         break
                                                 except:
