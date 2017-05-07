@@ -34,24 +34,24 @@ class Pxls(object):
         self.color_tuples = list()
         self.boarddata = bytearray()
         self.unprocessed_pixels = list()
+        self.unsent_pixels = dict()
+        self.preview_radius = self.config.setdefault("preview_radius", 20)
 
         if not os.path.isdir("backups"):
             os.makedirs("backups")
         self.templates = self.find_backup("templates")
-        self.log_channels = self.find_backup("log-channels")
         self.alert_channels = self.find_backup("alert-channels")
         self.numbers = self.find_backup("numbers")
         self.mentions = self.find_backup("mentions")
-        self.log_entries_cache = self.find_backup("log-entries")
         self.statistics = self.find_backup("statistics")
         # statistics are server_id:(harmful users, helpful users, harmful pixels, helpful pixels)
 
         self.spectator = self.bot.loop.create_task(self.task_pxls_spectator())
-        self.processor = self.bot.loop.create_task(self.task_5seconds())
+        self.time_based = self.bot.loop.create_task(self.task_5seconds())
         self.backer = self.bot.loop.create_task(self.task_backup_maker())
+        self.pixel_processor = self.bot.loop.create_task(self.task_pixel_processor())
 
-        for server in self.bot.servers:
-            self.numbers.setdefault(server.id, dict())
+        self.cleanup()
 
     def find_backup(self, name):
         for file in os.listdir("backups"):
@@ -92,7 +92,7 @@ class Pxls(object):
                        "dark purple"]
         return color_names[self.get_nearest_pixel_index(color_tuple, named_colors)]
 
-    async def initpxls(self):
+    async def init_pxls(self):
         async with aiohttp.ClientSession() as session:
             async with session.get("{}/info".format(self.config['pxls_default']),
                                    headers={'Cookie': 'pxls-agegate=1'}) as response:
@@ -104,51 +104,29 @@ class Pxls(object):
                                    headers={'Cookie': 'pxls-agegate=1'}) as response:
                 self.boarddata = bytearray(await response.read())
 
-    async def task_backup_maker(self):
-        while True:
-            await asyncio.sleep(3600)
-            self.make_backup()
-            await self.initpxls()
-
     def make_backup(self):
         self.cleanup()
         self.backup_info(self.templates, "templates")
-        self.backup_info(self.log_channels, "log-channels")
         self.backup_info(self.alert_channels, "alert-channels")
         self.backup_info(self.mentions, "mentions")
-        self.backup_info(self.log_entries_cache, "log-entries")
         self.backup_info(self.numbers, "numbers")
 
     def cleanup(self):
         for server in self.bot.servers:
             self.numbers.setdefault(server.id, dict())
-        for server_id in self.log_channels:
-            self.log_channels[server_id] = list(set(self.log_channels[server_id]))
         for server_id in self.alert_channels:
             self.alert_channels[server_id] = list(set(self.alert_channels[server_id]))
         for server_id in self.mentions:
             self.mentions[server_id] = list(set(self.mentions[server_id]))
-        for entry in list(self.log_entries_cache.keys()):
-            channel_id = entry.split("x")[0]
-            channels = list()
-            for server_id in self.log_channels:
-                for channel_id in self.log_channels[server_id]:
-                    channels.append(channel_id)
-            if channel_id not in channels:
-                try:
-                    del self.log_entries_cache[entry]
-                except:
-                    pass
 
     def backup_info(self, info, name):
-        if name != "log-entries":
-            servers = [i.id for i in self.bot.servers]
-            for server_id in list(info.keys()):
-                if server_id not in servers:
-                    try:
-                        del info[server_id]
-                    except:
-                        pass
+        servers = [i.id for i in self.bot.servers]
+        for server_id in list(info.keys()):
+            if server_id not in servers:
+                try:
+                    del info[server_id]
+                except:
+                    pass
         if not os.path.isdir("backups"):
             os.makedirs("backups")
         date = str(datetime.datetime.now())
@@ -161,56 +139,19 @@ class Pxls(object):
                 if file != "{}{}.json".format(name, date):
                     os.remove("backups/{}".format(file))
 
-    def pixel_into_embed(self, pixel, is_helpful, is_harmful, is_questionable, on_templates, should_be, to_add=None):
-        title = ""
-        color = 0x000000
-        if is_helpful:
-            title = "\U0001f44d Helpful"
-            color = 0x55FF00
-        if is_harmful:
-            if not title:
-                title = "\u274c Harmful"
-                color = 0xFF0000
-            else:
-                title = "(There's a conflicting pixel. Please check templates)\nConflicting"
-        if is_questionable:
-            if not title:
-                title = "\u2049 Questionable"
-                color = 0xFFFF00
-            else:
-                title = "(There's a conflicting pixel. Please check templates)\nConflicting"
-
-        try:
-            if pixel['debug']:
-                title += " AND FAKE DEBUG "
-        except:
-            pass
-
-        em = discord.Embed(color=color)
-        name = "{} pixel placed at x={}, y={}".format(title, pixel["x"], pixel["y"])
-
-        if to_add:
-            name += ". " + to_add.strip()
-        elif is_harmful or is_questionable:
-            name += ". Is {} but should be {}!".format(self.get_color_name(self.color_tuples[pixel['color']]),
-                                                       self.get_color_name(self.color_tuples[should_be[0]]))
-        template = on_templates[0]
-        value = "[Link with cords to {}]({}/#template={}&ox={}&oy={}&x={}&y={}&scale=50&oo=0.5)".format(
-            template['name'],
-            self.config['pxls_default'],
-            template["template"],
-            template['ox'],
-            template['oy'],
-            pixel["x"], pixel["y"])
-        em.add_field(name=name, value=value)
-        return em
+    async def task_backup_maker(self):
+        while True:
+            await asyncio.sleep(3600)
+            self.make_backup()
+            await self.init_pxls()
 
     async def task_pxls_spectator(self):
         while True:
             try:
                 async with websockets.connect(self.config['pxls_ws'], extra_headers={"Cookie": "pxls-agegate=1"}) as ws:
-                    await self.initpxls()
+                    await self.init_pxls()
                     while True:
+                        await asyncio.sleep(1)
                         info = literal_eval(await ws.recv())
                         if info["type"] == "pixel":
                             for px in info["pixels"]:
@@ -224,7 +165,7 @@ class Pxls(object):
             await asyncio.sleep(5)
             for server_id in self.statistics:
                 stats = self.statistics[server_id]
-                stats = [max(stats[0] - 0.05, 0), max(stats[1] - 0.05, 0), stats[2], stats[3]]
+                stats = [max(stats[0] - 0.04, 0), max(stats[1] - 0.04, 0), stats[2], stats[3]]
                 if stats[0] < stats[2]:
                     stats[0] += 1
                     stats[2] = 0
@@ -236,125 +177,81 @@ class Pxls(object):
                 for template in self.templates[server_id]:
                     if template.setdefault('score', 0) > -0.5:
                         template['score'] *= 0.99
+
+    async def task_pixel_processor(self):
+        while True:
+            await asyncio.sleep(1)
             for pixel in self.unprocessed_pixels[:]:
-                for server_id in set(self.log_channels.keys()).union(set(self.alert_channels.keys())):
+                for server_id in [i.id for i in self.bot.servers]:
                     if server_id in self.templates:
                         is_harmful = False
                         is_helpful = False
-                        is_questionable = False
-                        on_templates = list()
-                        should_be = list()
                         for template in self.templates[server_id]:
                             assert isinstance(template, dict)
                             assert isinstance(pixel, dict)
                             xx = pixel["x"] - template["ox"]
                             yy = pixel["y"] - template["oy"]
                             # if pixel is on template
-                            if xx >= 0 and yy >= 0 and xx < template["w"] and yy < template["h"] and \
-                                            template["data"][
-                                                        xx + yy * template["w"]] != -1:
-
-                                on_templates.append(template)
-                                should_be.append(template["data"][xx + yy * template["w"]])
+                            if xx >= 0 and yy >= 0 and xx < template["w"] and yy < template["h"] and template["data"][
+                                        xx + yy * template["w"]] != -1:
                                 # if the colors match
                                 if pixel["color"] == template["data"][xx + yy * template["w"]]:
                                     is_helpful = True
-                                    template['score'] = template.setdefault('score', 0) + 1
+                                    template['score'] = template.setdefault('score', 0) * 0.5 + 1
                                 else:
-                                    keep_going = True
-                                    for ix in range(-1, 3, 1):
-                                        if keep_going:
-                                            if ix == 2:
-                                                is_harmful = True
-                                                template['score'] = template.setdefault('score', 0) - 1
-                                                break
-                                            for iy in range(-1, 2, 1):
-                                                try:
-                                                    # look for pixels around the placed one
-                                                    if pixel["color"] == template["data"][
-                                                                        xx + ix + (yy + iy) * template["w"]]:
-                                                        is_questionable = True
-                                                        template['score'] = template.setdefault('score', 0) * 0.5 - 0.5
-                                                        keep_going = False
-                                                        break
-                                                except:
-                                                    continue
-                        self.numbers.setdefault(server_id, dict())
-                        if is_harmful:
-                            self.numbers[server_id]['score'] = self.numbers[server_id].setdefault('score', 0) - 1
-                            stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
-                            stats[2] += 1
-                            self.statistics[server_id] = stats
-                        if is_helpful:
-                            self.numbers[server_id]['score'] = self.numbers[server_id].setdefault('score', 0) * 0.5 + 1
-                            stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
-                            stats[3] += 1
-                            self.statistics[server_id] = stats
-                        if is_questionable:
-                            self.numbers[server_id]['score'] = self.numbers[server_id].setdefault('score', 0) * 0.8
-                            stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
-                            stats[2] += 0.5
-                            self.statistics[server_id] = stats
-                        try:
-                            if self.numbers[server_id]['last_alert'] < time.time() - self.numbers[server_id]['silence']:
-                                harms = self.statistics[server_id][0] - self.statistics[server_id][1]
-                                if any([self.numbers[server_id]['score'] <= self.numbers[server_id]['threshold'] * -1,
-                                        harms > self.numbers[server_id]['threshold']]):
+                                    is_harmful = True
+                                    template['score'] = template.setdefault('score', 0) - 1
+                            try:
+                                last_alert = self.numbers[server_id]['last_alert'] + self.numbers[server_id]['silence']
+                                threshold = self.numbers[server_id].setdefault('threshold', 5)
+                                if last_alert < time.time() and template['score'] < threshold * -1:
                                     self.numbers[server_id]['last_alert'] = time.time()
-                                    self.numbers[server_id]['score'] += 5 + self.numbers[server_id]['threshold']
-                                    msg = "\nDamage done is over threshold value" \
-                                          "\nUse ``{}directions`` for directions".format(self.config['prefix'])
+                                    template['score'] = -1
+                                    msg = ""
                                     if server_id in self.mentions:
-                                        msg = "".join([str(i) for i in set(self.mentions[server_id])]) + msg
+                                        msg = "".join([str(i) for i in set(self.mentions[server_id])])
                                         if [i for i in self.bot.get_server(server_id).roles if
                                             i.name == "@everyone"][
                                             0].mention in self.mentions[server_id]:
                                             msg = "@everyone " + msg
-                                    if server_id in self.log_channels:
-                                        msg += "\nGo to {} to see the logs".format(", ".join(
-                                            [str(self.bot.get_channel(i).mention) for i in
-                                             self.log_channels[server_id]]))
-                                    msg += "\nLet's clean everything up"
+                                    r = self.preview_radius
+                                    preview = Image.new("RGBA", (r * 2, r * 2))
+                                    data = []
+                                    from_x = min(max(pixel['x'] - r, 0), self.width - r * 2)
+                                    to_x = max(min(pixel['x'] + r, self.width), r * 2)
+                                    from_y = min(max(pixel['y'] - r, 0), self.height - r * 2)
+                                    to_y = max(min(pixel['y'] + r, self.height), r * 2)
+                                    for j in range(from_y, to_y):
+                                        for i in range(from_x, to_x):
+                                            data.append(self.color_tuples[self.boarddata[i + j * self.width]])
+                                    preview.putdata(data)
+                                    preview = preview.resize((300, 300))
+                                    buffer = BytesIO()
+                                    preview.save(buffer, "jpeg")
+                                    buffer.seek(0)
 
                                     for channel_id in set(self.alert_channels[server_id]):
                                         try:
-                                            await self.bot.send_message(self.bot.get_channel(channel_id), msg)
-                                        except:
-                                            pass
-                        except:
-                            pass
-                        if on_templates:
-                            embed = self.pixel_into_embed(pixel, is_helpful, is_harmful, is_questionable,
-                                                          on_templates,
-                                                          should_be)
-                            if server_id in self.log_channels:
-                                for channel_id in set(self.log_channels[server_id]):
-                                    entry_id = "x".join([channel_id, str(pixel['x']), str(pixel['y'])])
-                                    if entry_id in self.log_entries_cache:
-                                        try:
-                                            entry = self.log_entries_cache[entry_id]
-                                            await self.bot.delete_message(
-                                                await self.bot.get_message(self.bot.get_channel(entry[0]), entry[1]))
-                                        except:
-                                            pass
-                                        del self.log_entries_cache[entry_id]
-                                    try:
-                                        if is_harmful or is_questionable:
-                                            msg = await self.bot.send_message(
-                                                self.bot.get_channel(channel_id), embed=embed)
-                                            self.log_entries_cache[entry_id] = (channel_id, msg.id)
-                                        else:
-                                            await self.bot.send_message(self.bot.get_channel(channel_id),
-                                                                        embed=embed)
-                                    except:
-                                        try:
-                                            await self.bot.send_message(self.bot.get_channel(channel_id),
-                                                                        "Allow me to embed links")
-                                        except:
-                                            pass
+                                            await self.bot.send_file(self.bot.get_channel(channel_id), buffer,
+                                                                     filename="Preview.jpeg", content=msg)
+                                        except Exception as error:
+                                            traceback.print_exception(type(error), error, error.__traceback__)
+                            except Exception as error:
+                                traceback.print_exception(type(error), error, error.__traceback__)
+
+                        self.numbers.setdefault(server_id, dict())
+                        if is_harmful:
+                            stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
+                            stats[2] += 1
+                            self.statistics[server_id] = stats
+                        if is_helpful:
+                            stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
+                            stats[3] += 1
+                            self.statistics[server_id] = stats
+
                 self.unprocessed_pixels.remove(pixel)
 
-    ### Actual commands
+    # Actual commands
 
     @commands.command(pass_context=True, hidden=True)
     async def assure(self, ctx):
@@ -366,8 +263,8 @@ class Pxls(object):
             await self.bot.say("Restarting task_pxls_spectator")
         else:
             await self.bot.say("task_pxls_spectator is running")
-        if self.processor.done():
-            self.processor = self.bot.loop.create_task(self.task_5seconds())
+        if self.time_based.done():
+            self.time_based = self.bot.loop.create_task(self.task_5seconds())
             await self.bot.say("Restarting task_5seconds")
         else:
             await self.bot.say("task_5seconds is running")
@@ -376,6 +273,11 @@ class Pxls(object):
             await self.bot.say("Restarting task_backup_maker")
         else:
             await self.bot.say("task_backup_maker is running")
+        if self.pixel_processor.done():
+            self.pixel_processor = self.bot.loop.create_task(self.task_pixel_processor())
+            await self.bot.say("Restarting task_pixel_processor")
+        else:
+            await self.bot.say("task_pixel_processor is running")
 
     @commands.command(pass_context=True, hidden=True)
     async def makebackup(self, ctx):
@@ -390,32 +292,9 @@ class Pxls(object):
     async def debugfakepixel(self, ctx, x: int, y: int, color_index: int):
         if ctx.message.author.id == self.config["owner_id"]:
             self.unprocessed_pixels.append({'x': x, 'y': y, 'color': color_index, 'debug': True})
-            await self.bot.say("Succesfully faked pixel. Should appear in logs soon.")
+            await self.bot.say("Succesfully faked pixel.")
         else:
             await self.bot.say("Only bot owner can use debug.")
-
-    @commands.command(pass_context=True)
-    @commands.has_permissions(administrator=True)
-    async def startlogs(self, ctx):
-        """
-        Starts logs in this channel
-
-        Logs show every pixel that's placed on any template added with addtemplate
-        """
-        self.log_channels.setdefault(ctx.message.server.id, []).append(ctx.message.channel.id)
-        await self.bot.say("Will show logs to this channel")
-
-    @commands.command(pass_context=True)
-    @commands.has_permissions(administrator=True)
-    async def stoplogs(self, ctx):
-        """
-        Stop logs in this channel
-        """
-        try:
-            self.log_channels[ctx.message.server.id].remove(ctx.message.channel.id)
-            await self.bot.say("Successfully removed channel from logs list")
-        except:
-            await self.bot.say("That channel isn't in the logs list")
 
     @commands.command(pass_context=True)
     @commands.has_permissions(administrator=True)
@@ -452,7 +331,7 @@ class Pxls(object):
         except:
             pass
 
-    @commands.command(pass_context=True)
+    @commands.command(pass_context=True, aliases=['addm'])
     @commands.has_permissions(administrator=True)
     async def addmention(self, ctx, role: discord.Role):
         """
@@ -529,12 +408,6 @@ class Pxls(object):
                 await self.bot.say("Showing alerts in channel{}: {}".format(
                     "" if len(self.alert_channels[ctx.message.server.id]) == 1 else "s", ", ".join(
                         [self.bot.get_channel(i).mention for i in set(self.alert_channels[ctx.message.server.id])])))
-        if ctx.message.server.id in self.log_channels:
-            if self.log_channels[ctx.message.server.id]:
-                await self.bot.say("Showing logs in channel{}: {}".format(
-                    "" if len(self.log_channels[ctx.message.server.id]) == 1 else "s",
-                    ", ".join(
-                        [self.bot.get_channel(i).mention for i in set(self.log_channels[ctx.message.server.id])])))
         if ctx.message.server.id in self.mentions:
             if self.mentions[ctx.message.server.id]:
                 ll = len(self.mentions[ctx.message.server.id])
@@ -568,7 +441,7 @@ class Pxls(object):
             await self.bot.say("Error while making test alert!")
             traceback.print_exception(type(error), error, error.__traceback__)
 
-    @commands.command(pass_context=True)
+    @commands.command(pass_context=True, aliases=['addt'])
     @commands.has_permissions(administrator=True)
     async def addtemplate(self, ctx, url: str, *, name: str):
         """
@@ -590,6 +463,8 @@ class Pxls(object):
             if im.size[0] * im.size[1] > 40000:
                 await self.bot.say("This imgae is too large! Please use images 200x200 in size or less.")
                 return
+            int(parameters.setdefault('ox', 0))
+            int(parameters.setdefault('oy', 0))
             if int(parameters["ox"]) < 0 or int(parameters["ox"]) + im.size[0] > self.width or int(
                     parameters["oy"]) < 0 or int(parameters["oy"]) + im.size[1] > self.height:
                 await self.bot.say("This imgae is outside the canvas!")
@@ -648,9 +523,8 @@ class Pxls(object):
 5. pxls.space has generated the correct link into address bar. Just copy it from there.
 6. Now use addtemplate. You need to name the template.
 7. Say startalerts in a channel you want to alert.
-8. Say startlogs in a channel you want to log pixels in.
-9. Add roles to mention with addmention.
-10. You are setup.
+8. Add roles to mention with addmention.
+9. You are setup.
 
 If anything else is confusing you can always use the help command. Or try and find me in pxls discord
 """
@@ -676,6 +550,8 @@ If anything else is confusing you can always use the help command. Or try and fi
                             if template['data'][xx + yy * template['w']] == self.boarddata[
                                                 xx + ox + (yy + oy) * self.width]:
                                 done += 1
+                if done == total:
+                    template['score'] = 0
                 icon = "\u23f9"
                 if template['score'] > 0.5:
                     icon = "\u23eb"
@@ -737,8 +613,10 @@ If anything else is confusing you can always use the help command. Or try and fi
                 if not self.boarddata[xx + yy * self.width] == pixel:
                     url = "{}/#template={}&ox={}&oy={}&x={}&y={}&scale=50&oo=0.5".format(
                         self.config['pxls_default'], template["template"], template['ox'], template['oy'], xx, yy)
-                    directions.append(["Pixel at x={}, y={} should be {}".format(xx, yy, self.get_color_name(
-                        self.color_tuples[pixel])), "[Link to {}]({})".format(template['name'], url)])
+                    pixel_is = self.get_color_name(self.boarddata[xx + yy * self.width])
+                    should_be = self.get_color_name(self.color_tuples[pixel])
+                    directions.append(["Pixel at x={}, y={} is {} but should be {}".format(xx, yy, pixel_is, should_be),
+                                       "[Link to {}]({})".format(template['name'], url)])
                     total += 1
                     if total >= how_much:
                         break

@@ -7,5 +7,6 @@
   "owner_id": "",
   "status": "",
   "pxls_ws": "wss://pxls.space/ws",
-  "pxls_default": "https://pxls.space"
+  "pxls_default": "https://pxls.space",
+  "preview_radius": 20
 }
