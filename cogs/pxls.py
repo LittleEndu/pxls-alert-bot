@@ -234,10 +234,10 @@ class Pxls(object):
                                         try:
                                             await self.bot.send_file(self.bot.get_channel(channel_id), buffer,
                                                                      filename="Preview.jpeg", content=msg)
-                                        except Exception as error:
-                                            traceback.print_exception(type(error), error, error.__traceback__)
-                            except Exception as error:
-                                traceback.print_exception(type(error), error, error.__traceback__)
+                                        except:
+                                            pass
+                            except:
+                                pass
 
                         self.numbers.setdefault(server_id, dict())
                         if is_harmful:
