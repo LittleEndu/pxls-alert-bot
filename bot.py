@@ -155,14 +155,14 @@ async def announce(ctx, *, announcement: str):
         for server in bot.servers:
             try:
                 await bot.send_message(destination=server.default_channel, content=announcement)
-                continue
+                return
             except:
                 pass
             for channel in server.channels:
                 if channel.type == discord.ChannelType.text:
                     try:
                         await bot.send_message(destination=channel, content=announcement)
-                        break
+                        return
                     except:
                         pass
     else:
