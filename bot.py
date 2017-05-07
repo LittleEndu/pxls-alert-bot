@@ -152,19 +152,25 @@ async def announce(ctx, *, announcement: str):
     """
     announcement = "(Sorry if this isn't the right channel for these) Announcement from bot maker:\n\n" + announcement
     if ctx.message.author.id == config["owner_id"]:
+        sent = False
+        error = None
         for server in bot.servers:
             try:
                 await bot.send_message(destination=server.default_channel, content=announcement)
-                return
+                sent = True
+                break
             except:
                 pass
             for channel in server.channels:
                 if channel.type == discord.ChannelType.text:
                     try:
                         await bot.send_message(destination=channel, content=announcement)
-                        return
-                    except:
-                        pass
+                        sent = True
+                        break
+                    except Exception as e:
+                        error = e
+        if not sent:
+            await bot.say("Failed to send message...\n"+repr(e))
     else:
         await bot.say("Only the bot owner can announce stuff")
 

@@ -235,7 +235,11 @@ class Pxls(object):
                                             await self.bot.send_file(self.bot.get_channel(channel_id), buffer,
                                                                      filename="Preview.jpeg", content=msg)
                                         except:
-                                            pass
+                                            try:
+                                                await self.bot.send_message(self.bot.get_channel(channel_id),
+                                                                            "Allow me to send files")
+                                            except:
+                                                pass
                             except:
                                 pass
 
