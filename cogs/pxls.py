@@ -166,7 +166,7 @@ class Pxls(object):
             await asyncio.sleep(5)
             for server_id in self.statistics:
                 stats = self.statistics[server_id]
-                stats = [max(stats[0] - 0.04, 0), max(stats[1] - 0.04, 0), stats[2], stats[3]]
+                stats = [max(stats[0] - 5/60, 0), max(stats[1] - 5/60, 0), stats[2], stats[3]]
                 if stats[0] < stats[2]:
                     stats[0] += 1
                     stats[2] = 0
@@ -579,10 +579,8 @@ If anything else is confusing you can always use the help command. Or try and fi
         stats = self.statistics.setdefault(ctx.message.server.id, [0, 0, 0, 0])
         helpful = math.ceil(stats[1])
         harmful = math.ceil(stats[0])
-        msg = "About {} helpful user{} {} active".format(helpful, "" if helpful == 1 else "s",
-                                                         "is" if helpful == 1 else "are")
-        msg += "\nAbout {} harmful user{} {} active".format(harmful, "" if harmful == 1 else "s",
-                                                            "is" if harmful == 1 else "are")
+        msg = "About {} helpful pixel{} per minute".format(helpful, "" if helpful == 1 else "s")
+        msg += "\nAbout {} harmful pixel{} pre minute".format(harmful, "" if harmful == 1 else "s")
         await self.bot.say(msg)
 
     @commands.command(pass_context=True)
