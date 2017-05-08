@@ -214,6 +214,7 @@ class Pxls(object):
                                             i.name == "@everyone"][
                                             0].mention in self.mentions[server_id]:
                                             msg = "@everyone " + msg
+                                    msg = "{}\nScreenshot taken around {}, {}".format(msg, pixel['x'], pixel['y'])
                                     r = self.preview_radius
                                     preview = Image.new("RGBA", (r * 2, r * 2))
                                     data = []
