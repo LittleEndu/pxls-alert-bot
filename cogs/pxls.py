@@ -197,7 +197,7 @@ class Pxls(object):
                                 # if the colors match
                                 if pixel["color"] == template["data"][xx + yy * template["w"]]:
                                     is_helpful = True
-                                    template['score'] = template.setdefault('score', 0) * 0.5 + 1
+                                    template['score'] = template.setdefault('score', 0) + 1
                                 else:
                                     is_harmful = True
                                     template['score'] = template.setdefault('score', 0) - 1
