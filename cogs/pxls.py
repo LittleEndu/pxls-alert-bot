@@ -248,11 +248,11 @@ class Pxls(object):
                         self.numbers.setdefault(server_id, dict())
                         if is_harmful:
                             stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
-                            stats[2] += 1
+                            stats[2] += 1.1
                             self.statistics[server_id] = stats
                         if is_helpful:
                             stats = self.statistics.setdefault(server_id, [0, 0, 0, 0])
-                            stats[3] += 1
+                            stats[3] += 1.1
                             self.statistics[server_id] = stats
 
                 self.unprocessed_pixels.remove(pixel)
