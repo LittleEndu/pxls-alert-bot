@@ -584,7 +584,7 @@ If anything else is confusing you can always use the help command. Or try and fi
         helpful = math.ceil(stats[1])
         harmful = math.ceil(stats[0])
         msg = "Overall status: {}% done".format(str(overall_done / overall_total * 100)[:5])
-        msg += "About {} helpful pixel{} per minute".format(helpful, "" if helpful == 1 else "s")
+        msg += "\nAbout {} helpful pixel{} per minute".format(helpful, "" if helpful == 1 else "s")
         msg += "\nAbout {} harmful pixel{} per minute".format(harmful, "" if harmful == 1 else "s")
         await self.bot.say(msg)
 
