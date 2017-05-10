@@ -202,48 +202,48 @@ class Pxls(object):
                                 else:
                                     is_harmful = True
                                     template['score'] = template.setdefault('score', 0) - 1
-                            try:
-                                last_alert = self.numbers[server_id]['last_alert'] + self.numbers[server_id]['silence']
-                                threshold = self.numbers[server_id].setdefault('threshold', 5)
-                                if last_alert < time.time() and template['score'] < threshold * -1:
-                                    self.numbers[server_id]['last_alert'] = time.time()
-                                    template['score'] = -1
-                                    msg = ""
-                                    if server_id in self.mentions:
-                                        msg = "".join([str(i) for i in set(self.mentions[server_id])])
-                                        if [i for i in self.bot.get_server(server_id).roles if
-                                            i.name == "@everyone"][
-                                            0].mention in self.mentions[server_id]:
-                                            msg = "@everyone " + msg
-                                    msg = "{}\nScreenshot taken around {}, {}".format(msg, pixel['x'], pixel['y'])
-                                    r = self.preview_radius
-                                    preview = Image.new("RGBA", (r * 2, r * 2))
-                                    data = []
-                                    from_x = min(max(pixel['x'] - r, 0), self.width - r * 2)
-                                    to_x = max(min(pixel['x'] + r, self.width), r * 2)
-                                    from_y = min(max(pixel['y'] - r, 0), self.height - r * 2)
-                                    to_y = max(min(pixel['y'] + r, self.height), r * 2)
-                                    for j in range(from_y, to_y):
-                                        for i in range(from_x, to_x):
-                                            data.append(self.color_tuples[self.boarddata[i + j * self.width]])
-                                    preview.putdata(data)
-                                    preview = preview.resize((300, 300))
-                                    buffer = BytesIO()
-                                    preview.save(buffer, "jpeg")
-                                    buffer.seek(0)
+                                try:
+                                    last_alert = self.numbers[server_id]['last_alert'] + self.numbers[server_id]['silence']
+                                    threshold = self.numbers[server_id].setdefault('threshold', 5)
+                                    if last_alert < time.time() and template['score'] < threshold * -1:
+                                        self.numbers[server_id]['last_alert'] = time.time()
+                                        template['score'] = -1
+                                        msg = ""
+                                        if server_id in self.mentions:
+                                            msg = "".join([str(i) for i in set(self.mentions[server_id])])
+                                            if [i for i in self.bot.get_server(server_id).roles if
+                                                i.name == "@everyone"][
+                                                0].mention in self.mentions[server_id]:
+                                                msg = "@everyone " + msg
+                                        msg = "{}\nScreenshot taken around {}, {}".format(msg, pixel['x'], pixel['y'])
+                                        r = self.preview_radius
+                                        preview = Image.new("RGBA", (r * 2, r * 2))
+                                        data = []
+                                        from_x = min(max(pixel['x'] - r, 0), self.width - r * 2)
+                                        to_x = max(min(pixel['x'] + r, self.width), r * 2)
+                                        from_y = min(max(pixel['y'] - r, 0), self.height - r * 2)
+                                        to_y = max(min(pixel['y'] + r, self.height), r * 2)
+                                        for j in range(from_y, to_y):
+                                            for i in range(from_x, to_x):
+                                                data.append(self.color_tuples[self.boarddata[i + j * self.width]])
+                                        preview.putdata(data)
+                                        preview = preview.resize((300, 300))
+                                        buffer = BytesIO()
+                                        preview.save(buffer, "jpeg")
+                                        buffer.seek(0)
 
-                                    for channel_id in set(self.alert_channels[server_id]):
-                                        try:
-                                            await self.bot.send_file(self.bot.get_channel(channel_id), buffer,
-                                                                     filename="Preview.jpeg", content=msg)
-                                        except:
+                                        for channel_id in set(self.alert_channels[server_id]):
                                             try:
-                                                await self.bot.send_message(self.bot.get_channel(channel_id),
-                                                                            "Allow me to send files")
+                                                await self.bot.send_file(self.bot.get_channel(channel_id), buffer,
+                                                                         filename="Preview.jpeg", content=msg)
                                             except:
-                                                pass
-                            except:
-                                pass
+                                                try:
+                                                    await self.bot.send_message(self.bot.get_channel(channel_id),
+                                                                                "Allow me to send files")
+                                                except:
+                                                    pass
+                                except:
+                                    pass
 
                         self.numbers.setdefault(server_id, dict())
                         if is_harmful:
