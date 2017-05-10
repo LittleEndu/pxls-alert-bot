@@ -541,6 +541,8 @@ If anything else is confusing you can always use the help command. Or try and fi
         """
         Shows status on templates
         """
+        overall_total = 0
+        overall_done = 0
         emb = discord.Embed()
         count = 0
         try:
@@ -553,9 +555,11 @@ If anything else is confusing you can always use the help command. Or try and fi
                     for yy in range(template['h']):
                         if template['data'][xx + yy * template['w']] != -1:
                             total += 1
+                            overall_total += 1
                             if template['data'][xx + yy * template['w']] == self.boarddata[
                                                 xx + ox + (yy + oy) * self.width]:
                                 done += 1
+                                overall_done += 1
                 if done == total:
                     template['score'] = 0
                 icon = "\u23f9"
@@ -579,7 +583,8 @@ If anything else is confusing you can always use the help command. Or try and fi
         stats = self.statistics.setdefault(ctx.message.server.id, [0, 0, 0, 0])
         helpful = math.ceil(stats[1])
         harmful = math.ceil(stats[0])
-        msg = "About {} helpful pixel{} per minute".format(helpful, "" if helpful == 1 else "s")
+        msg = "Overall status: {}% done".format(str(overall_done / overall_total * 100)[:5])
+        msg += "About {} helpful pixel{} per minute".format(helpful, "" if helpful == 1 else "s")
         msg += "\nAbout {} harmful pixel{} per minute".format(harmful, "" if harmful == 1 else "s")
         await self.bot.say(msg)
 
