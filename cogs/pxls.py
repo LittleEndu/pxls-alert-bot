@@ -546,36 +546,40 @@ If anything else is confusing you can always use the help command. Or try and fi
         emb = discord.Embed()
         count = 0
         try:
-            for template in self.templates[ctx.message.server.id]:
-                total = 0
-                done = 0
-                ox = template['ox']
-                oy = template['oy']
-                for xx in range(template['w']):
-                    for yy in range(template['h']):
-                        if template['data'][xx + yy * template['w']] != -1:
-                            total += 1
-                            overall_total += 1
-                            if template['data'][xx + yy * template['w']] == self.boarddata[
-                                                xx + ox + (yy + oy) * self.width]:
-                                done += 1
-                                overall_done += 1
-                if done == total:
-                    template['score'] = 0
-                icon = "\u23f9"
-                if template['score'] > 0.5:
-                    icon = "\u23eb"
-                if template['score'] < -0.5:
-                    icon = "\u23ec"
-                emb.add_field(name=template['name'], value="{}% done {}".format(str(done / total * 100)[:5], icon))
-                count += 1
-                if count == 15:
-                    try:
-                        await self.bot.send_message(ctx.message.channel, embed=emb)
-                    except discord.Forbidden:
-                        await self.bot.say("Allow me to embed links")
+            templates = self.templates.get(ctx.message.server.id)
+            if templates is None or len(templates) == 0:
+                emb.add_field(name="\u274c\u274c\u274c", value="No templates found")
+            else:
+                for template in self.templates[ctx.message.server.id]:
+                    total = 0
+                    done = 0
+                    ox = template['ox']
+                    oy = template['oy']
+                    for xx in range(template['w']):
+                        for yy in range(template['h']):
+                            if template['data'][xx + yy * template['w']] != -1:
+                                total += 1
+                                overall_total += 1
+                                if template['data'][xx + yy * template['w']] == self.boarddata[
+                                                    xx + ox + (yy + oy) * self.width]:
+                                    done += 1
+                                    overall_done += 1
+                    if done == total:
+                        template['score'] = 0
+                    icon = "\u23f9"
+                    if template['score'] > 0.5:
+                        icon = "\u23eb"
+                    if template['score'] < -0.5:
+                        icon = "\u23ec"
+                    emb.add_field(name=template['name'], value="{}% done {}".format(str(done / total * 100)[:5], icon))
+                    count += 1
+                    if count == 15:
+                        try:
+                            await self.bot.send_message(ctx.message.channel, embed=emb)
+                        except discord.Forbidden:
+                            await self.bot.say("Allow me to embed links")
         except:
-            emb.add_field(name="Error!", value="No templates found")
+            pass
         try:
             await self.bot.send_message(ctx.message.channel, embed=emb)
         except discord.Forbidden:
