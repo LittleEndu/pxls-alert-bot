@@ -1,9 +1,13 @@
 import inspect
 import json
+import logging
 import os
+import sys
 import traceback
+from datetime import datetime
 
 import discord
+import logbook
 from discord.ext import commands
 
 if not os.path.isfile("config.json"):
@@ -16,13 +20,21 @@ with open("config.json") as file_in:
 
 bot = commands.Bot(command_prefix=config["prefix"], description='''pxls-alert-bot by LittleEndu''')
 
+if not os.path.isdir("logs"):
+    os.makedirs("logs")
+bot.logger = logbook.Logger("Pxls")
+bot.logger.handlers.append(
+    logbook.FileHandler("logs/" + str(datetime.now().date()) + ".log", level="INFO", bubble=True))
+bot.logger.handlers.append(logbook.StreamHandler(sys.stderr, level='INFO', bubble=True))
+logging.root.setLevel(logging.INFO)
+
 
 @bot.event
 async def on_ready():
-    print('Logged in as')
-    print(bot.user.name)
-    print(bot.user.id)
-    print('------')
+    bot.logger.info('Logged in as')
+    bot.logger.info(bot.user.name)
+    bot.logger.info(bot.user.id)
+    bot.logger.info('------')
     try:
         if config['status']:
             game = discord.Game(name=config['status'])
@@ -37,19 +49,21 @@ async def on_message(message):
 
 
 @bot.event
-async def on_command_error(error, ctx):
+async def on_command_error(e, ctx):
     # Check the type of the error.
-    if isinstance(error, (commands.errors.BadArgument, commands.errors.MissingRequiredArgument)):
-        await bot.send_message(ctx.message.channel, ":x: Bad argument: {}".format(' '.join(error.args)))
+    if isinstance(e, (commands.errors.BadArgument, commands.errors.MissingRequiredArgument)):
+        await bot.send_message(ctx.message.channel, ":x: Bad argument: {}".format(' '.join(e.args)))
         return
-    elif isinstance(error, commands.errors.CheckFailure):
+    elif isinstance(e, commands.errors.CheckFailure):
         await bot.send_message(ctx.message.channel, ":x: Check failed. You probably don't have permission to do this.")
         return
-    elif isinstance(error, commands.errors.CommandNotFound):
+    elif isinstance(e, commands.errors.CommandNotFound):
         await bot.send_message(ctx.message.channel, ":question:")
         return
     else:
-        traceback.print_exception(type(error), error, error.__traceback__)
+        await bot.send_message(ctx.message.channel,
+                               ":x: Error occurred while handling the command. This has been logged")
+        bot.logger.error("".join(traceback.format_exception(type(e), e.__cause__, e.__cause__.__traceback__)))
 
 
 @bot.command(pass_context=True, hidden=True)
@@ -170,7 +184,7 @@ async def announce(ctx, *, announcement: str):
                     except Exception as e:
                         error = e
         if not sent:
-            await bot.say("Failed to send message...\n"+repr(e))
+            await bot.say("Failed to send message...\n" + repr(e))
     else:
         await bot.say("Only the bot owner can announce stuff")
 
@@ -180,9 +194,9 @@ if __name__ == '__main__':
         for extension in config['auto_load']:
             try:
                 bot.load_extension(extension)
-                print("Successfully loaded {}".format(extension))
+                bot.logger.info("Successfully loaded {}".format(extension))
             except Exception as e:
-                print('Failed to load extension {}\n{}: {}'.format(extension, type(e).__name__, e))
+                bot.logger.info('Failed to load extension {}\n{}: {}'.format(extension, type(e).__name__, e))
         bot.run(config['token'])
     else:
-        print("Please add the bot's token to the config file!")
+        bot.logger.info("Please add the bot's token to the config file!")

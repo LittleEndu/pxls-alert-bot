@@ -6,7 +6,6 @@ import os
 import random
 import struct
 import time
-import traceback
 import urllib.parse
 from ast import literal_eval
 from io import BytesIO
@@ -28,6 +27,8 @@ class Pxls(object):
         self.bot = bot
         with open("config.json") as file_in:
             self.config = json.load(file_in)
+
+        self.logger = bot.logger
 
         self.width = 0
         self.height = 0
@@ -166,7 +167,7 @@ class Pxls(object):
             await asyncio.sleep(5)
             for server_id in self.statistics:
                 stats = self.statistics[server_id]
-                stats = [max(stats[0] - 5/60, 0), max(stats[1] - 5/60, 0), stats[2], stats[3]]
+                stats = [max(stats[0] - 5 / 60, 0), max(stats[1] - 5 / 60, 0), stats[2], stats[3]]
                 if stats[0] < stats[2]:
                     stats[0] += 1
                     stats[2] = 0
@@ -203,7 +204,8 @@ class Pxls(object):
                                     is_harmful = True
                                     template['score'] = template.setdefault('score', 0) - 1
                                 try:
-                                    last_alert = self.numbers[server_id]['last_alert'] + self.numbers[server_id]['silence']
+                                    last_alert = self.numbers[server_id]['last_alert'] + self.numbers[server_id][
+                                        'silence']
                                     threshold = self.numbers[server_id].setdefault('threshold', 5)
                                     if last_alert < time.time() and template['score'] < threshold * -1:
                                         self.numbers[server_id]['last_alert'] = time.time()
@@ -371,15 +373,11 @@ class Pxls(object):
         """
         Set the threshold value used for alerts
         """
-        try:
-            if value < 0:
-                await self.bot.say("Threshold must be positive")
-                return
-            self.numbers.setdefault(ctx.message.server.id, dict())["threshold"] = value
-            await self.bot.say("Successfully set the threshold")
-        except Exception as error:
-            await self.bot.say("Error while setting threshold value.")
-            traceback.print_exception(type(error), error, error.__traceback__)
+        if value < 0:
+            await self.bot.say("Threshold must be positive")
+            return
+        self.numbers.setdefault(ctx.message.server.id, dict())["threshold"] = value
+        await self.bot.say("Successfully set the threshold")
 
     @commands.command(pass_context=True)
     @commands.has_permissions(administrator=True)
@@ -387,15 +385,11 @@ class Pxls(object):
         """
         Set the silence time for alerts
         """
-        try:
-            if minutes < 0:
-                await self.bot.say("Minutes must be positive")
-                return
-            self.numbers.setdefault(ctx.message.server.id, dict())['silence'] = minutes * 60
-            await self.bot.say("Successfully set the silence")
-        except Exception as error:
-            await self.bot.say("Error while setting silence.")
-            traceback.print_exception(type(error), error, error.__traceback__)
+        if minutes < 0:
+            await self.bot.say("Minutes must be positive")
+            return
+        self.numbers.setdefault(ctx.message.server.id, dict())['silence'] = minutes * 60
+        await self.bot.say("Successfully set the silence")
 
     @commands.command(pass_context=True)
     async def showsettings(self, ctx):
@@ -431,21 +425,17 @@ class Pxls(object):
         """
         Does a test alert.
         """
-        if not ctx.message.server.id in self.alert_channels:
+        if ctx.message.server.id not in self.alert_channels:
             await self.bot.say("You don't seem to have any alert channels")
             return
-        try:
-            for channel in set(self.alert_channels[ctx.message.server.id]):
-                msg = "\nTEST ALERT"
-                if ctx.message.server.id in self.mentions:
-                    msg = "".join([str(i) for i in self.mentions[ctx.message.server.id]]) + msg
-                    if [i for i in self.bot.get_server(ctx.message.server.id).roles if i.name == "@everyone"][
-                        0].mention in self.mentions[ctx.message.server.id]:
-                        msg = "@everyone " + msg
-                await self.bot.send_message(self.bot.get_channel(channel), msg)
-        except Exception as error:
-            await self.bot.say("Error while making test alert!")
-            traceback.print_exception(type(error), error, error.__traceback__)
+        for channel in set(self.alert_channels[ctx.message.server.id]):
+            msg = "\nTEST ALERT"
+            if ctx.message.server.id in self.mentions:
+                msg = "".join([str(i) for i in self.mentions[ctx.message.server.id]]) + msg
+                if [i for i in self.bot.get_server(ctx.message.server.id).roles if i.name == "@everyone"][
+                    0].mention in self.mentions[ctx.message.server.id]:
+                    msg = "@everyone " + msg
+            await self.bot.send_message(self.bot.get_channel(channel), msg)
 
     @commands.command(pass_context=True, aliases=['addt'])
     @commands.has_permissions(administrator=True)
@@ -457,43 +447,35 @@ class Pxls(object):
         im = None
         if "#" not in url:
             await self.bot.say("You need the url that has # in it")
-        try:
-            parameters = {i.split("=")[0]: i.split("=")[1] for i in url[url.find("#") + 1:].split("&")}
-            async with aiohttp.ClientSession() as session:
-                async with session.get(urllib.parse.unquote(parameters["template"])) as response:
-                    im = Image.open(BytesIO(await response.read()))
-            if "tw" in parameters:
-                if not parameters["tw"] == str(im.size[0]):
-                    await self.bot.say("Can't use scaled images.")
-                    return
-            if im.size[0] * im.size[1] > 40000:
-                await self.bot.say("This imgae is too large! Please use images 200x200 in size or less.")
+        parameters = {i.split("=")[0]: i.split("=")[1] for i in url[url.find("#") + 1:].split("&")}
+        async with aiohttp.ClientSession() as session:
+            async with session.get(urllib.parse.unquote(parameters["template"])) as response:
+                im = Image.open(BytesIO(await response.read()))
+        if "tw" in parameters:
+            if not parameters["tw"] == str(im.size[0]):
+                await self.bot.say("Can't use scaled images.")
                 return
-            int(parameters.setdefault('ox', 0))
-            int(parameters.setdefault('oy', 0))
-            if int(parameters["ox"]) < 0 or int(parameters["ox"]) + im.size[0] > self.width or int(
-                    parameters["oy"]) < 0 or int(parameters["oy"]) + im.size[1] > self.height:
-                await self.bot.say("This imgae is outside the canvas!")
-                return
-            if im.mode != "RGBA":
-                im = im.convert("RGBA")
-            info = dict()
-            info["template"] = parameters["template"]
-            info["ox"] = int(parameters["ox"])
-            info["oy"] = int(parameters["oy"])
-            info["data"] = [self.get_nearest_pixel_index(i, self.color_tuples) for i in im.getdata()]
-            info["w"], info["h"] = im.size
-            info["name"] = name
-            info["score"] = 0
-            self.templates.setdefault(ctx.message.server.id, []).append(info)
-            await self.bot.say("Successfully added the template.")
-        except Exception as error:
-            await self.bot.say("Error while adding template.")
-            traceback.print_exception(type(error), error, error.__traceback__)
-            if im:
-                image_data = [i for i in im.getdata()]
-                with open("debug.txt", "w") as file_out:
-                    file_out.write(str(image_data))
+        if im.size[0] * im.size[1] > 40000:
+            await self.bot.say("This imgae is too large! Please use images 200x200 in size or less.")
+            return
+        int(parameters.setdefault('ox', 0))
+        int(parameters.setdefault('oy', 0))
+        if int(parameters["ox"]) < 0 or int(parameters["ox"]) + im.size[0] > self.width or int(
+                parameters["oy"]) < 0 or int(parameters["oy"]) + im.size[1] > self.height:
+            await self.bot.say("This imgae is outside the canvas!")
+            return
+        if im.mode != "RGBA":
+            im = im.convert("RGBA")
+        info = dict()
+        info["template"] = parameters["template"]
+        info["ox"] = int(parameters["ox"])
+        info["oy"] = int(parameters["oy"])
+        info["data"] = [self.get_nearest_pixel_index(i, self.color_tuples) for i in im.getdata()]
+        info["w"], info["h"] = im.size
+        info["name"] = name
+        info["score"] = 0
+        self.templates.setdefault(ctx.message.server.id, []).append(info)
+        await self.bot.say("Successfully added the template.")
 
     @commands.command(pass_context=True)
     @commands.has_permissions(administrator=True)
@@ -501,19 +483,15 @@ class Pxls(object):
         """
         Removes template using name
         """
-        try:
-            removed = 0
-            for template in self.templates[ctx.message.server.id][:]:
-                if template["name"] == name:
-                    self.templates[ctx.message.server.id].remove(template)
-                    removed += 1
-            if removed:
-                await self.bot.say("Successfully removed {} template{}.".format(removed, "" if removed == 1 else "s"))
-            else:
-                await self.bot.say("Didn't find such template.")
-        except Exception as error:
-            await self.bot.say("Error while removing template.")
-            traceback.print_exception(type(error), error, error.__traceback__)
+        removed = 0
+        for template in self.templates[ctx.message.server.id][:]:
+            if template["name"] == name:
+                self.templates[ctx.message.server.id].remove(template)
+                removed += 1
+        if removed:
+            await self.bot.say("Successfully removed {} template{}.".format(removed, "" if removed == 1 else "s"))
+        else:
+            await self.bot.say("Didn't find such template.")
 
     @commands.command(pass_context=True)
     @commands.has_permissions(administrator=True)
