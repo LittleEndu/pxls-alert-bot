@@ -609,7 +609,7 @@ If anything else is confusing you can always use the help command. Or try and fi
                 if not self.boarddata[xx + yy * self.width] == pixel:
                     url = "{}/#template={}&ox={}&oy={}&x={}&y={}&scale=50&oo=0.5".format(
                         self.config['pxls_default'], template["template"], template['ox'], template['oy'], xx, yy)
-                    pixel_is = self.get_color_name(self.boarddata[xx + yy * self.width])
+                    pixel_is = self.get_color_name(self.color_tuples[self.boarddata[xx + yy * self.width]])
                     should_be = self.get_color_name(self.color_tuples[pixel])
                     directions.append(["Pixel at x={}, y={} is {} but should be {}".format(xx, yy, pixel_is, should_be),
                                        "[Link to {}]({})".format(template['name'], url)])
