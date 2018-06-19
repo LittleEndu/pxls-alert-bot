@@ -84,14 +84,10 @@ class Pxls(object):
         return minimum
 
     def get_color_name(self, color_tuple):
-        named_colors = [(255, 255, 255, 255), (228, 228, 228, 255), (136, 136, 136, 255), (34, 34, 34, 255),
-                        (255, 167, 209, 255), (229, 0, 0, 255), (229, 149, 0, 255), (160, 106, 66, 255),
-                        (229, 217, 0, 255), (148, 224, 68, 255), (2, 190, 1, 255), (0, 211, 221, 255),
-                        (0, 131, 199, 255), (0, 0, 234, 255), (207, 110, 228, 255), (130, 0, 128, 255),
-                        (255, 0, 255, 255), (245, 245, 220, 255), (0, 0, 0, 255), (128, 0, 0, 255)]
-        color_names = ["white", "light gray", "dark gray", "black", "pink", "red", "orange", "brown", "yellow",
-                       "light green", "dark green", "cyan/teal", "sky blue", "dark blue", "purpleishpink",
-                       "dark purple", "magenta", "beige", "true black", "maroon"]
+        named_colors = [(255, 255, 255, 255), (205, 205, 205, 255), (136, 136, 136, 255), (85, 85, 85, 255), (34, 34, 34, 255), (0, 0, 0, 255), (255, 167, 209, 255), (229, 0, 0, 255), (128, 0, 0, 255), (255, 221, 202, 255), (246, 179, 137, 255), (229, 149, 0, 255), (160, 106, 66, 255), (96, 64, 40, 255), (229, 217, 0, 255), (148, 224, 68, 255), (2, 190, 1, 255), (0, 95, 0, 255), (0, 211, 221, 255), (0, 131, 199, 255), (0, 0, 234, 255), (207, 110, 228, 255), (255, 0, 255, 255), (130, 0, 128, 255)]
+        color_names = ["white", "silver", "light gray", "medium gray", "dark gray", "black", "pink", "red",
+                       "dark red", "peach", "tan", "orange", "brown", "dark brown", "yellow", "light green",
+                       "green", "dark green", "cyan/teal", "sky blue", "dark blue", "lavender", "magenta", "purple"]
         return color_names[self.get_nearest_pixel_index(color_tuple, named_colors)]
 
     async def init_pxls(self):
